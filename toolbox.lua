@@ -491,6 +491,140 @@ LMG2L["OpenButton_34"]["Text"] = [[<]];
 LMG2L["OpenButton_34"]["Name"] = [[OpenButton]];
 LMG2L["OpenButton_34"]["Position"] = UDim2.new(0, 0, 0, -7);
 
+-- Layanan yang dibutuhkan
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
 
+-- Pindahkan ke CoreGui
+LMG2L["Toolbox_1"].Parent = CoreGui
+
+-- Variabel utama
+local ToolboxGUI = LMG2L["Toolbox_1"]
+local Panel = LMG2L["Panel_3"]
+local Scroll = LMG2L["ScrollingFrame_1f"]
+local ResizeHandle = LMG2L["ResizeHandleButton_1d"]
+local OpenButton = LMG2L["OpenButton_34"]
+local CloseButton = LMG2L["CloseButton_1a"]
+local StatusLabel = LMG2L["StatusLabel_9"]
+local LisensiLabel = LMG2L["LisensiLabel_1c"]
+
+-- Simpan posisi dan ukuran awal
+local OriginalPosition = Panel.Position
+local OriginalSize = Panel.Size
+
+-- Info animasi umum
+local TweenInfo_OpenClose = TweenInfo.new(
+    0.25,
+    Enum.EasingStyle.Quad,
+    Enum.EasingDirection.Out
+)
+
+local TweenInfo_CloseDestroy = TweenInfo.new(
+    0.2,
+    Enum.EasingStyle.Sine,
+    Enum.EasingDirection.In
+)
+
+-- ==============================================
+-- ANIMASI MUNCUL SAAT DIJALANKAN
+-- ==============================================
+Panel.AnchorPoint = Vector2.new(0, 0)
+Panel.Position = UDim2.new(0, -Panel.Size.X.Offset, 0, 20)
+Panel.Size = OriginalSize
+
+TweenService:Create(Panel, TweenInfo_OpenClose, {
+    Position = OriginalPosition
+}):Play()
+
+-- ==============================================
+-- SISTEM BUKA / TUTUP SAMPING
+-- ==============================================
+local OpenPosition = OriginalPosition
+local ClosePosition = UDim2.new(0, -Panel.Size.X.Offset, 0, 20)
+local IsOpen = true
+
+OpenButton.MouseButton1Click:Connect(function()
+    IsOpen = not IsOpen
+    if IsOpen then
+        OpenButton.Text = "<"
+        TweenService:Create(Panel, TweenInfo_OpenClose, {
+            Position = OpenPosition
+        }):Play()
+    else
+        OpenButton.Text = ">"
+        TweenService:Create(Panel, TweenInfo_OpenClose, {
+            Position = ClosePosition
+        }):Play()
+    end
+end)
+
+-- ==============================================
+-- TOMBOL TUTUP DENGAN ANIMASI MENYUSUT
+-- ==============================================
+CloseButton.MouseButton1Click:Connect(function()
+    -- Hentikan semua animasi berjalan
+    TweenService:Create(Panel, TweenInfo_CloseDestroy, {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(OriginalPosition.X.Scale, OriginalPosition.X.Offset, OriginalPosition.Y.Scale, OriginalPosition.Y.Offset)
+    }):Play()
+
+    -- Hapus GUI setelah animasi selesai
+    task.wait(TweenInfo_CloseDestroy.Time)
+    ToolboxGUI:Destroy()
+end)
+
+-- ==============================================
+-- SISTEM UBAH UKURAN PANEL
+-- ==============================================
+local Dragging = false
+local StartMouseY = 0
+local StartHeight = 0
+local MIN_HEIGHT = 338
+local MAX_HEIGHT = 700
+
+ResizeHandle.InputBegan:Connect(function(Input)
+    if Input.UserInputType == Enum.UserInputType.MouseButton1
+    or Input.UserInputType == Enum.UserInputType.Touch then
+        Dragging = true
+        StartMouseY = Input.Position.Y
+        StartHeight = Panel.Size.Y.Offset
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(Input)
+    if Input.UserInputType == Enum.UserInputType.MouseButton1
+    or Input.UserInputType == Enum.UserInputType.Touch then
+        Dragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(Input)
+    if not Dragging then return end
+    if Input.UserInputType ~= Enum.UserInputType.MouseMovement
+    and Input.UserInputType ~= Enum.UserInputType.Touch then return end
+
+    local Delta = Input.Position.Y - StartMouseY
+    local NewHeight = math.clamp(StartHeight + Delta, MIN_HEIGHT, MAX_HEIGHT)
+
+    -- Terapkan perubahan ukuran & posisi
+    Panel.Size = UDim2.new(0, 290, 0, NewHeight)
+    Scroll.Size = UDim2.new(0, 290, 0, math.max(50, NewHeight - 156))
+    StatusLabel.Position = UDim2.new(0, 12, 0, NewHeight - 14)
+    LisensiLabel.Position = UDim2.new(0, 224, 0, NewHeight - 14)
+    ResizeHandle.Position = UDim2.new(0, 4, 0, NewHeight - 10)
+end)
+
+-- ==============================================
+-- PENYESUAIAN OTOMATIS AREA GULIR
+-- ==============================================
+local Layout = Scroll:FindFirstChildOfClass("UIListLayout")
+if Layout then
+    local function UpdateCanvas()
+        Scroll.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 8)
+    end
+    UpdateCanvas()
+    Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateCanvas)
+end
 
 return LMG2L["Toolbox_1"], require;
