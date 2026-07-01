@@ -914,4 +914,217 @@ local function InsertAsset(assetId, category, statusTarget)
     end
 end
 
+-------------------------------------------------------------------------
+-- RENDER LIST ASSET & AUTOMATIC SCROLL BAR CANVAS CALIBRATION
+-------------------------------------------------------------------------
+local AssetInfoCache = {}
+
+local function RenderAssets(searchQuery)
+    ClearList()
+    
+    CurrentSessionId = CurrentSessionId + 1
+    local thisSession = CurrentSessionId
+    
+    local targetCategoryAtCall = CurrentCategory
+    local targetList = SavedAssets[targetCategoryAtCall] or {}
+    
+    local query = ""
+    if searchQuery and searchQuery ~= "Search asset..." then
+        query = searchQuery:lower():match("^%s*(.-)%s*$") or ""
+    end
+
+    local function UpdateCanvas()
+        if CurrentCategory ~= targetCategoryAtCall then return end
+        local layout = ScrollingFrame:FindFirstChildOfClass("UIListLayout")
+        if layout then
+            ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 25)
+        end
+    end
+
+    for _, assetId in ipairs(targetList) do
+        task.spawn(function()
+            local success, info = true, AssetInfoCache[assetId]
+            
+            if not info then
+                success, info = pcall(function() return MarketplaceService:GetProductInfo(assetId) end)
+                if success and info then
+                    AssetInfoCache[assetId] = info
+                end
+            end
+            
+            if thisSession ~= CurrentSessionId or CurrentCategory ~= targetCategoryAtCall then 
+                return 
+            end
+            
+            if success and info then
+                if query ~= "" then
+                    local assetNameLower = info.Name:lower()
+                    local assetIdStr = tostring(assetId)
+                    if not assetNameLower:find(query, 1, true) and not assetIdStr:find(query, 1, true) then
+                        return 
+                    end
+                end
+
+                -- Clone card berdasarkan CardAsset_20 sebagai Template
+                local card = LMG2L["CardAsset_20"]:Clone()
+                card.Visible = true
+                card.Parent = ScrollingFrame
+                card.Name = "Asset_" .. assetId
+
+                -- Referensi elemen di dalam card
+                local SalinIDButton = card:FindFirstChild("SalinIDButton")
+                local InsertButton = card:FindFirstChild("InsertButton")
+                local ImageAssetID = card:FindFirstChild("ImageAssetID")
+                local ID = card:FindFirstChild("ID")
+                local NamaPembuat = card:FindFirstChild("NamaPembuat")
+                local NameAsset = card:FindFirstChild("NameAsset")
+
+                -- Memasukkan Data Text & Gambar
+                NameAsset.Text = info.Name
+                NamaPembuat.Text = "By: " .. (info.Creator and info.Creator.Name or "Unknown")
+                ID.Text = "ID : " .. tostring(assetId)
+
+                if targetCategoryAtCall == "Decal" then
+                    ImageAssetID.Image = "rbxthumb://type=Asset&id=" .. assetId .. "&w=150&h=150"
+                elseif targetCategoryAtCall == "Audio" then
+                    ImageAssetID.Image = "rbxassetid://16327318049"
+                else
+                    ImageAssetID.Image = "rbxthumb://type=Asset&id=" .. assetId .. "&w=150&h=150"
+                end
+
+                SalinIDButton.MouseButton1Click:Connect(function()
+                    setclipboard(tostring(assetId))
+                    SalinIDButton.Text = "Copied!"
+                    task.wait(1)
+                    SalinIDButton.Text = "ID 🫪"
+                end)
+
+                InsertButton.MouseButton1Click:Connect(function()
+                    InsertAsset(assetId, targetCategoryAtCall, InsertButton)
+                    task.wait(1.5)
+                    InsertButton.Text = "INSERT"
+                end)
+            end
+        end)
+    end
+    
+    task.delay(0.5, UpdateCanvas)
+end
+
+local function SwitchTab(tabName)
+    CurrentCategory = tabName
+    ModelButton.BackgroundColor3 = COLOR_INACTIVE
+    DecalButton.BackgroundColor3 = COLOR_INACTIVE
+    AudioButton.BackgroundColor3 = COLOR_INACTIVE
+
+    if tabName == "Model" then ModelButton.BackgroundColor3 = COLOR_ACTIVE
+    elseif tabName == "Decal" then DecalButton.BackgroundColor3 = COLOR_ACTIVE
+    elseif tabName == "Audio" then AudioButton.BackgroundColor3 = COLOR_ACTIVE end
+    
+    SearchBox.Text = "Search asset..."
+    RenderAssets()
+end
+
+-------------------------------------------------------------------------
+-- ACTION LISTENERS & EVENT HANDLERS
+-------------------------------------------------------------------------
+ModelButton.MouseButton1Click:Connect(function() SwitchTab("Model") end)
+DecalButton.MouseButton1Click:Connect(function() SwitchTab("Decal") end)
+AudioButton.MouseButton1Click:Connect(function() SwitchTab("Audio") end)
+
+-- FUNGSIONALITAS 1: INSERT BUTTON (Murni Load langsung ID dari kolom ke Workspace)
+InsertButton.MouseButton1Click:Connect(function()
+    local inputText = InsertIDBox.Text
+    local cleanId = tonumber(inputText:match("%d+"))
+
+    if cleanId and tostring(cleanId) == inputText:match("%d+") then
+        InsertButton.Text = "WORKING"
+        InsertAsset(cleanId, nil, InsertButton)
+        task.wait(1.5)
+        InsertButton.Text = "INSERT"
+        InsertIDBox.Text = "Masukan Id asset..."
+    else
+        InsertIDBox.Text = "Harus ID Angka!"
+        task.wait(1.5)
+        InsertIDBox.Text = "Masukan Id asset..."
+    end
+end)
+
+-- FUNGSIONALITAS 2: SEARCH BUTTON (Memfilter list internal secara real-time)
+SearchButton.MouseButton1Click:Connect(function()
+    local inputText = SearchBox.Text
+    if inputText == "" or inputText:lower() == "search asset..." then
+        RenderAssets()
+    else
+        SearchButton.Text = "FIND"
+        RenderAssets(inputText)
+        task.wait(1)
+        SearchButton.Text = "→"
+    end
+end)
+
+-- Deteksi ketikan dinamis pada Search Box
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local currentText = SearchBox.Text
+    local lowerText = currentText:lower()
+    if currentText ~= "" and lowerText ~= "search asset..." then
+        RenderAssets(currentText)
+    elseif currentText == "" or lowerText == "search asset..." then
+        RenderAssets()
+    end
+end)
+
+-- FUNGSIONALITAS 3: SAVE BUTTON (Validasi ganda anti duplikasi data kembar)
+SaveIDButton.MouseButton1Click:Connect(function()
+    local cleanId = tonumber(SaveIDBox.Text:match("%d+"))
+    if not cleanId then
+        SaveIDBox.Text = "Harus ID Angka!"
+        task.wait(1.5)
+        SaveIDBox.Text = "Masukan ID save asset..."
+        return
+    end
+
+    SaveIDButton.Text = "..."
+    
+    local isDuplicate = false
+    for _, assetList in pairs(SavedAssets) do
+        for _, id in ipairs(assetList) do
+            if tonumber(id) == cleanId then
+                isDuplicate = true
+                break
+            end
+        end
+        if isDuplicate then break end
+    end
+
+    if isDuplicate then
+        SaveIDBox.Text = "Sudah Ada!"
+        task.wait(1.5)
+        SaveIDButton.Text = "SAVE"
+        SaveIDBox.Text = "Masukan ID save asset..."
+        return
+    end
+
+    local success, info = pcall(function() return MarketplaceService:GetProductInfo(cleanId) end)
+
+    if success and info then
+        local cat = GetCategoryFromAssetType(info.AssetTypeId)
+        table.insert(SavedAssets[cat], cleanId)
+        SaveData()
+        SwitchTab(cat) 
+        SaveIDBox.Text = "Tersimpan!"
+    else
+        SaveIDBox.Text = "ID Gagal Validasi!"
+    end
+    
+    task.wait(2)
+    SaveIDButton.Text = "SAVE"
+    SaveIDBox.Text = "Masukan ID save asset..."
+end)
+
+-------------------------------------------------------------------------
+-- INITIALIZATION RUN
+-------------------------------------------------------------------------
+SwitchTab("Model")
+
 return LMG2L["Toolbox_1"], require;
