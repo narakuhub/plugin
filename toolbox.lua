@@ -686,4 +686,65 @@ local TemplateFrame = LMG2L["CardAsset_20"] -- Template item list
 TemplateFrame.Visible = false 
 TemplateFrame.Parent = nil
 
+-------------------------------------------------------------------------
+-- DATA CONFIGURATION & LOCAL STORAGE SYSTEM
+-------------------------------------------------------------------------
+local CurrentCategory = "Model" 
+local CurrentSessionId = 0 
+local SavedAssets = {
+    Model = {89464989224212, 16063473188},
+    Decal = {4846381420},
+    Audio = {118149279616179, 124112959171614}
+}
+
+-- Warna UI yang digunakan untuk interaksi
+local COLOR_ACTIVE = Color3.fromRGB(29, 171, 223)   
+local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36) 
+
+-- Memuat data dari sistem file executor
+if makefolder and isfile and readfile then
+    pcall(function()
+        makefolder("delta")
+        if isfile("delta/toolbox_assets.json") then
+            local decoded = HttpService:JSONDecode(readfile("delta/toolbox_assets.json"))
+            if decoded then SavedAssets = decoded end
+        end
+    end)
+end
+
+-- Menyimpan data ke file sistem
+local function SaveData()
+    if writefile then
+        pcall(function()
+            writefile("delta/toolbox_assets.json", HttpService:JSONEncode(SavedAssets))
+        end)
+    end
+end
+
+-- Membersihkan isi list rendering
+-- Menggunakan ScrollingFrame_1f dari struktur ScreenGui
+local function ClearList()
+    for _, item in ipairs(ScrollingFrame:GetChildren()) do
+        -- Hanya hapus objek yang berupa Frame (item asset)
+        -- Kita tidak menghapus UIListLayout_2d atau UIPadding_2c
+        if item:IsA("Frame") and item.Name == "CardAsset" then
+            item:Destroy()
+        end
+    end
+end
+
+-------------------------------------------------------------------------
+-- LOGIKA DETEKSI KATEGORI OTOMATIS
+-------------------------------------------------------------------------
+local function GetCategoryFromAssetType(assetTypeId)
+    -- Mapping ID tipe asset ke kategori string
+    if assetTypeId == 13 or assetTypeId == 1 or assetTypeId == 2 or assetTypeId == 14 then
+        return "Decal"
+    elseif assetTypeId == 3 or assetTypeId == 34 then
+        return "Audio"
+    else
+        return "Model"
+    end
+end
+
 return LMG2L["Toolbox_1"], require;
