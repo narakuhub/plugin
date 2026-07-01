@@ -1060,7 +1060,7 @@ SearchButton.MouseButton1Click:Connect(function()
     if inputText == "" or inputText:lower() == "search asset..." then
         RenderAssets("")
     else
-        SearchButton.Text = "FIND"
+        SearchButton.Text = "→"
         RenderAssets(inputText)
         task.wait(1)
         SearchButton.Text = "→"
