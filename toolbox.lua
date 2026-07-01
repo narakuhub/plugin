@@ -627,4 +627,63 @@ if Layout then
     Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateCanvas)
 end
 
+-------------------------------------------------------------------------
+-- SERVICES & STUDIO LITE BINDINGS
+-------------------------------------------------------------------------
+local TweenService = game:GetService("TweenService")	
+local MarketplaceService = game:GetService("MarketplaceService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Memberikan timeout agar tidak terjadi infinite yield
+local StudioLiteFolder = game:GetService("ReplicatedStorage"):WaitForChild("StudioLiteFolder", 3)
+local LoadAssetRemote = StudioLiteFolder and StudioLiteFolder:WaitForChild("LoadAssetModelToPlayerGuiServerFunction", 3)
+local ClearAssetRemote = StudioLiteFolder and StudioLiteFolder:WaitForChild("ClearAssetModelToPlayerGuiServerFunction", 3)
+
+-- Integrasi Explorer Panel
+local StudioGui = PlayerGui:WaitForChild("StudioGui", 3)
+local ExplorerPanel = StudioGui and StudioGui:WaitForChild("ExplorerPanel", 3)
+local GetSelection = ExplorerPanel and ExplorerPanel:WaitForChild("GetSelection", 3)
+local SetSelection = ExplorerPanel and ExplorerPanel:WaitForChild("SetSelection", 3)
+
+-- File System Fallback
+local writefile = writefile or io.writefile
+local readfile = readfile or io.readfile
+local isfile = isfile or io.isfile
+local makefolder = makefolder or io.makefolder
+local setclipboard = setclipboard or toclipboard or print
+
+-------------------------------------------------------------------------
+-- PEMANGGILAN OBJEK UI (SINKRON DENGAN LMG2L)
+-------------------------------------------------------------------------
+local MainPanel = LMG2L["Panel_3"] -- Panel_3
+local Gui = LMG2L["Toolbox_1"] -- ScreenGui Utama
+
+-- Tab Filter Buttons
+local ModelButton = LMG2L["ModelButton_32"]
+local DecalButton = LMG2L["DecalButton_2e"]
+local AudioButton = LMG2L["AudioButton_30"]
+
+-- Bagian Atas Panel (Fungsi GET ID ke Workspace)
+local GetAssetIdBox = LMG2L["InsertIDBox_15"] -- Input ID untuk Insert
+local GetButton = LMG2L["InsertButton_17"]    -- Tombol INSERT
+
+-- Bagian Atas Panel (Fungsi SEARCH/CARI FILTER LIST)
+local SearchAssetBox = LMG2L["SearchBox_c"]
+local SearchButton = LMG2L["SearchButton_e"] -- Tombol → di dalam SearchBox_c
+
+-- Bagian Bawah Panel (Fungsi SAVE)
+local AssetIdBox = LMG2L["SaveIDBox_4"] -- Input ID untuk Save
+local SaveButton = LMG2L["SaveIDButton_5"] -- Tombol SAVE
+
+-- List Kontainer dan Item Template
+local ScrollingFrame = LMG2L["ScrollingFrame_1f"]
+local TemplateFrame = LMG2L["CardAsset_20"] -- Template item list
+
+-- Memutus Template Master dari susunan UIListLayout agar tidak tampil
+TemplateFrame.Visible = false 
+TemplateFrame.Parent = nil
+
 return LMG2L["Toolbox_1"], require;
