@@ -1050,29 +1050,40 @@ InsertButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- FUNGSIONALITAS 2: SEARCH BUTTON (Memfilter list internal secara real-time)
+-------------------------------------------------------------------------
+-- FIX: LOGIC SEARCH (Filter Nama & Pembuat)
+-------------------------------------------------------------------------
+
+-- 1. Fungsi Search Listener (Trigger saat tombol ditekan)
 SearchButton.MouseButton1Click:Connect(function()
     local inputText = SearchBox.Text
+    
+    -- Validasi agar tidak mencari teks default
     if inputText == "" or inputText:lower() == "search asset..." then
         RenderAssets()
     else
-        SearchButton.Text = "FIND"
+        SearchButton.Text = "."
         RenderAssets(inputText)
         task.wait(1)
         SearchButton.Text = "→"
     end
 end)
 
--- Deteksi ketikan dinamis pada Search Box
-SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-    local currentText = SearchBox.Text
-    local lowerText = currentText:lower()
-    if currentText ~= "" and lowerText ~= "search asset..." then
-        RenderAssets(currentText)
-    elseif currentText == "" or lowerText == "search asset..." then
-        RenderAssets()
+-- 2. Update Fungsi RenderAssets (Bagian filter di dalam loop)
+if query ~= "" then
+    local assetNameLower = info.Name:lower()
+    local creatorNameLower = (info.Creator and info.Creator.Name or "unknown"):lower()
+    local assetIdStr = tostring(assetId)
+    
+    -- Mengecek apakah query ada di Nama, ID, atau Nama Pembuat
+    local isMatch = assetNameLower:find(query, 1, true) 
+                 or assetIdStr:find(query, 1, true) 
+                 or creatorNameLower:find(query, 1, true)
+                 
+    if not isMatch then
+        return -- Skip jika tidak ditemukan di ketiga kategori
     end
-end)
+end
 
 -- FUNGSIONALITAS 3: SAVE BUTTON (Validasi ganda anti duplikasi data kembar)
 SaveIDButton.MouseButton1Click:Connect(function()
