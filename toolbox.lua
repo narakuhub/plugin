@@ -247,7 +247,64 @@ LMG2L["CloseButton_1a"]["Position"] = UDim2.new(0, 266, 0, 3);
 LMG2L["UICorner_1b"] = Instance.new("UICorner", LMG2L["CloseButton_1a"]);
 LMG2L["UICorner_1b"]["CornerRadius"] = UDim.new(0, 5);
 
+-- Players.HYUDGKJHBBNFFXXDHBN.PlayerGui.Toolbox.SidebarFrame
+LMG2L["SidebarFrame_2"] = Instance.new("Frame", LMG2L["Toolbox_1"]);
+LMG2L["SidebarFrame_2"]["BorderSizePixel"] = 0;
+LMG2L["SidebarFrame_2"]["BackgroundColor3"] = Color3.fromRGB(0, 0, 0);
+LMG2L["SidebarFrame_2"]["Size"] = UDim2.new(0, 30, 0, 122);
+LMG2L["SidebarFrame_2"]["Position"] = UDim2.new(0, 290, 0, 0);
+LMG2L["SidebarFrame_2"]["Name"] = [[SidebarFrame]];
+LMG2L["SidebarFrame_2"]["BackgroundTransparency"] = 0.2;
 
+
+-- Players.HYUDGKJHBBNFFXXDHBN.PlayerGui.Toolbox.SidebarFrame.FlyButton
+LMG2L["FlyButton_3"] = Instance.new("ImageButton", LMG2L["SidebarFrame_2"]);
+LMG2L["FlyButton_3"]["BorderSizePixel"] = 0;
+LMG2L["FlyButton_3"]["BackgroundTransparency"] = 1;
+-- LMG2L["FlyButton_3"]["ImageContent"] = ;
+LMG2L["FlyButton_3"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+LMG2L["FlyButton_3"]["Image"] = [[rbxassetid://76262278881731]];
+LMG2L["FlyButton_3"]["Size"] = UDim2.new(0, 30, 0, 30);
+LMG2L["FlyButton_3"]["Name"] = [[FlyButton]];
+LMG2L["FlyButton_3"]["Position"] = UDim2.new(0, 0, 0, 92);
+
+
+-- Players.HYUDGKJHBBNFFXXDHBN.PlayerGui.Toolbox.SidebarFrame.TerrainButton
+LMG2L["TerrainButton_4"] = Instance.new("ImageButton", LMG2L["SidebarFrame_2"]);
+LMG2L["TerrainButton_4"]["BorderSizePixel"] = 0;
+LMG2L["TerrainButton_4"]["BackgroundTransparency"] = 1;
+-- LMG2L["TerrainButton_4"]["ImageContent"] = ;
+LMG2L["TerrainButton_4"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+LMG2L["TerrainButton_4"]["Image"] = [[rbxassetid://124928500728814]];
+LMG2L["TerrainButton_4"]["Size"] = UDim2.new(0, 30, 0, 30);
+LMG2L["TerrainButton_4"]["Name"] = [[TerrainButton]];
+LMG2L["TerrainButton_4"]["Position"] = UDim2.new(0, 0, 0, 60);
+
+
+-- Players.HYUDGKJHBBNFFXXDHBN.PlayerGui.Toolbox.SidebarFrame.TextLabel
+LMG2L["TextLabel_5"] = Instance.new("TextLabel", LMG2L["SidebarFrame_2"]);
+LMG2L["TextLabel_5"]["BorderSizePixel"] = 0;
+LMG2L["TextLabel_5"]["TextSize"] = 7;
+LMG2L["TextLabel_5"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+LMG2L["TextLabel_5"]["FontFace"] = Font.new([[rbxasset://fonts/families/Arial.json]], Enum.FontWeight.Bold, Enum.FontStyle.Normal);
+LMG2L["TextLabel_5"]["TextColor3"] = Color3.fromRGB(202, 202, 202);
+LMG2L["TextLabel_5"]["BackgroundTransparency"] = 1;
+LMG2L["TextLabel_5"]["Size"] = UDim2.new(0, 30, 0, 26);
+LMG2L["TextLabel_5"]["Text"] = [[NRKV2.3]];
+
+
+-- Players.HYUDGKJHBBNFFXXDHBN.PlayerGui.Toolbox.SidebarFrame.ArchimedesButton
+LMG2L["ArchimedesButton_6"] = Instance.new("ImageButton", LMG2L["SidebarFrame_2"]);
+LMG2L["ArchimedesButton_6"]["BorderSizePixel"] = 0;
+LMG2L["ArchimedesButton_6"]["BackgroundTransparency"] = 1;
+-- LMG2L["ArchimedesButton_6"]["ImageContent"] = ;
+LMG2L["ArchimedesButton_6"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+LMG2L["ArchimedesButton_6"]["Image"] = [[rbxassetid://103155912284338]];
+LMG2L["ArchimedesButton_6"]["Size"] = UDim2.new(0, 30, 0, 30);
+LMG2L["ArchimedesButton_6"]["Name"] = [[ArchimedesButton]];
+LMG2L["ArchimedesButton_6"]["Position"] = UDim2.new(0, 0, 0, 28);
+
+--
 -- Players.HYUDGKJHBBNFFXXDHBN.PlayerGui.Toolbox.ToolboxByNaraku.Panel.LisensiLabel
 LMG2L["LisensiLabel_1c"] = Instance.new("TextLabel", LMG2L["Panel_3"]);
 LMG2L["LisensiLabel_1c"]["BorderSizePixel"] = 0;
@@ -508,6 +565,10 @@ local OpenButton = LMG2L["OpenButton_34"]
 local CloseButton = LMG2L["CloseButton_1a"]
 local StatusLabel = LMG2L["StatusLabel_9"]
 local LisensiLabel = LMG2L["LisensiLabel_1c"]
+local SidebarFrame = LMG2L["SidebarFrame_2"]
+local ArchimedesButton = LMG2L["ArchimedesButton_6"]
+local TerrainButton = LMG2L["TerrainButton_4"]
+local FlyButton = LMG2L["FlyButton_3"]
 
 -- Simpan posisi dan ukuran awal
 local OriginalPosition = Panel.Position
@@ -1048,6 +1109,19 @@ InsertButton.MouseButton1Click:Connect(function()
         task.wait(1.5)
         InsertIDBox.Text = "Masukan Id asset..."
     end
+end)
+
+-- Event Listener untuk Tombol Sidebar
+LMG2L["ArchimedesButton_6"].MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/Archimedes.lua"))()
+end)
+
+LMG2L["TerrainButton_4"].MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/terrain.lua"))()
+end)
+
+LMG2L["FlyButton_3"].MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/narakuhub/narakuhub/refs/heads/main/FlyV3.lua"))()
 end)
 
 -------------------------------------------------------------------------
