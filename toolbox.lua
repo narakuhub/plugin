@@ -591,7 +591,7 @@ local TweenInfo_CloseDestroy = TweenInfo.new(
 -- ANIMASI MUNCUL SAAT DIJALANKAN
 -- ==============================================
 Panel.AnchorPoint = Vector2.new(0, 0)
-Panel.Position = UDim2.new(0, -Panel.Size.X.Offset, 0, 20)
+Panel.Position = UDim2.new(0, -(Panel.Size.X.Offset + 30), 0, 20)
 Panel.Size = OriginalSize
 
 TweenService:Create(Panel, TweenInfo_OpenClose, {
