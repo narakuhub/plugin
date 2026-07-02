@@ -708,33 +708,48 @@ MiniButton.MouseButton1Click:Connect(function()
 	Tweening = false
 end)
 
-----------------------------------------------------
--- CLOSE
-----------------------------------------------------
+-- ====================================================================
+-- CLOSE BUTTON CONTROLLER - INTEGRATED
+-- ====================================================================
 
 local CloseButton = LMG2L["CloseButton_29"]
+local MiniButton  = LMG2L["MiniButton_16"] -- Menyesuaikan dengan struktur baru
+
 CloseButton.MouseButton1Click:Connect(function()
-	MiniButton.Active = false
-	CloseButton.Active = false
-
-	Panel.AnchorPoint = Vector2.new(0,0)
-
-	local Tween = TweenService:Create(
-		Panel,
-		TweenInfo.new(
-			0.22,
-			Enum.EasingStyle.Back,
-			Enum.EasingDirection.In
-		),
-		{
-			Size = UDim2.new(0,0,0,0),
-			BackgroundTransparency = 1
-		}
-	)
+    -- Putus koneksi mouse secara total agar sistem berhenti total
+    if clickConnection then
+        clickConnection:Disconnect()
+        clickConnection = nil
+    end
     
-	Tween:Play()
-	Tween.Completed:Wait()
-	Gui:Destroy()
+    -- Pembersihan data
+    ClearPreview() 
+    SelectedPart = nil
+    
+    -- Animasi Penutupan
+    MiniButton.Active = false
+    CloseButton.Active = false
+    
+    panel.AnchorPoint = Vector2.new(0, 0)
+    
+    local Tween = TweenService:Create(
+        panel,
+        TweenInfo.new(
+            0.22,
+            Enum.EasingStyle.Back,
+            Enum.EasingDirection.In
+        ),
+        {
+            Size = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 1
+        }
+    )
+    
+    Tween:Play()
+    Tween.Completed:Wait()
+    
+    -- Hancurkan GUI
+    screenGui:Destroy()
 end)
 ----------------------------------------------------
 -- DRAG PC + MOBILE
