@@ -607,7 +607,6 @@ local IsOpen = true
 
 OpenButton.MouseButton1Click:Connect(function()
     IsOpen = not IsOpen
-
     if IsOpen then
         OpenButton.Text = "<"
         TweenService:Create(Panel, TweenInfo_OpenClose, {
