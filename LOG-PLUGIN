@@ -2,7 +2,7 @@
 -- CONFIGURATION / PENGATURAN
 -- =============================================================================
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1511405932259573940/Rd_p_4vLNz-P3HZvoLiIfTX5Y2tFYsRIFJ8dBbhh5nVzbhlZ2WDfDYsn-BbrMqxTcLRf"
-local SCRIPT_URL = "https://raw.githubusercontent.com/narakublox/PluginStudioLite/refs/heads/main/KonfigurasiPlaceID.lua"
+local SCRIPT_URL = "https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/KonfigurasiPlaceID.lua"
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
