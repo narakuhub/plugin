@@ -248,7 +248,7 @@ LMG2L["UICorner_1b"] = Instance.new("UICorner", LMG2L["CloseButton_1a"]);
 LMG2L["UICorner_1b"]["CornerRadius"] = UDim.new(0, 5);
 
 -- Players.HYUDGKJHBBNFFXXDHBN.PlayerGui.Toolbox.SidebarFrame
-LMG2L["SidebarFrame_2"] = Instance.new("Frame", LMG2L["Toolbox_1"]);
+LMG2L["SidebarFrame_2"] = Instance.new("Frame", LMG2L["Panel_3"]);
 LMG2L["SidebarFrame_2"]["BorderSizePixel"] = 0;
 LMG2L["SidebarFrame_2"]["BackgroundColor3"] = Color3.fromRGB(0, 0, 0);
 LMG2L["SidebarFrame_2"]["Size"] = UDim2.new(0, 30, 0, 122);
