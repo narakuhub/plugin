@@ -785,4 +785,180 @@ UIS.InputChanged:Connect(function(input)
 	end
 end)
 
+-- ====================================================================
+-- INTEGRASI SYSTEM ARCHIMEDES V1.2 - TAHAP 1
+-- ====================================================================
+
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+
+-- Menggunakan referensi dari struktur LMG2L yang sudah diinisialisasi
+local panel = LMG2L["Panel_2"]
+local screenGui = LMG2L["ArchimedesUI_1"]
+
+-- Proteksi GUI
+screenGui.ResetOnSpawn = false
+pcall(function()
+    screenGui.Parent = CoreGui
+end)
+
+-- Referensi Komponen UI Baru
+local axisButtons = {
+    ["X"]  = LMG2L["AxisXButton_38"],
+    ["Y"]  = LMG2L["AxisYButton_36"],
+    ["Z"]  = LMG2L["AxisZButton_3d"],
+    ["X²"] = LMG2L["AxisX²Button_3f"],
+    ["Y²"] = LMG2L["AxisY²Button_33"],
+    ["Z²"] = LMG2L["AxisZ²Button_3a"]
+}
+
+local angleBox      = LMG2L["AngleBox_b"]
+local uiStrokeAngle = LMG2L["UIStroke_d"]
+local amountBox     = LMG2L["AmountBox_10"]
+
+local toggleComponents = {
+    ["Enabled"]   = LMG2L["ChecklisButton_1a"],
+    ["FlipAxis"]  = LMG2L["ChecklisButton_24"],
+    ["SwapSides"] = LMG2L["ChecklisButton_2c"]
+}
+
+local undoButton      = LMG2L["UndoButton_5"]
+local renderButton    = LMG2L["RenderButton_41"]
+local renderAllButton = LMG2L["RenderAllButton_3"]
+local closeButton     = LMG2L["CloseButton_29"]
+local miniButton      = LMG2L["MiniButton_16"]
+
+-- ====================================================================
+-- STATE & SETTINGS DATA - INTEGRATED
+-- ====================================================================
+local CurrentSettings = {
+    Direction = "X",
+    Angle = 5,
+    FlipAxis = false,
+    SwapSides = false,
+    Enabled = true,
+    Amount = 1
+}
+
+local SelectedPart = nil
+local PreviewPart = nil
+local RenderHistory = {}       
+local ActiveRenderFolder = nil 
+local FolderCounter = 1
+local panelTerbuka = true     
+local clickConnection = nil 
+
+local COLOR_ACTIVE = Color3.fromRGB(0, 162, 255)     
+local COLOR_NORMAL = Color3.fromRGB(33, 33, 33)      -- Disesuaikan dengan BackgroundColor3 pada AxisButton
+local BG_TOGGLE_ON = Color3.fromRGB(35, 255, 0)      -- Sesuai dengan warna TextColor3 Checklist
+local BG_TOGGLE_OFF = Color3.fromRGB(79, 79, 79)    
+
+-- Inisialisasi Nilai Awal InputBox
+local angleBox = LMG2L["AngleBox_b"]
+local amountBox = LMG2L["AmountBox_10"]
+
+angleBox.Text = "5"
+amountBox.Text = "0" -- Sesuai struktur awal Anda (sebelumnya: [[0]])
+amountBox.PlaceholderText = "1"
+
+-- ====================================================================
+-- CORE MATHEMATICS ENGINE
+-- ====================================================================
+
+local function CalculateCFrame(baseCFrame, size, direction, angle, flip, swap)
+    local radAngle = math.rad(angle)
+    if flip then radAngle = -radAngle end
+
+    local rotation = CFrame.identity
+    local offset = Vector3.zero
+
+    if direction == "X" then
+        rotation = CFrame.Angles(radAngle, 0, 0)
+        offset = Vector3.new(0, 0, swap and -size.Z or size.Z)
+    elseif direction == "X²" then
+        rotation = CFrame.Angles(-radAngle, 0, 0)
+        offset = Vector3.new(0, 0, swap and size.Z or -size.Z)
+    elseif direction == "Y" then
+        rotation = CFrame.Angles(0, radAngle, 0)
+        offset = Vector3.new(swap and -size.X or size.X, 0, 0)
+    elseif direction == "Y²" then
+        rotation = CFrame.Angles(0, -radAngle, 0)
+        offset = Vector3.new(swap and size.X or -size.X, 0, 0)
+    elseif direction == "Z" then
+        rotation = CFrame.Angles(0, 0, radAngle)
+        offset = Vector3.new(swap and -size.X or size.X, 0, 0)
+    elseif direction == "Z²" then
+        rotation = CFrame.Angles(0, 0, -radAngle)
+        offset = Vector3.new(swap and size.X or -size.X, 0, 0)
+    end
+
+    return baseCFrame * CFrame.new(offset / 2) * rotation * CFrame.new(offset / 2)
+end
+
+-- ====================================================================
+-- VISUAL PREVIEW & SELECTION CONTROLLER - INTEGRATED
+-- ====================================================================
+
+local function ClearPreview()
+    local oldPreview = Workspace:FindFirstChild("Archimedes_Preview")
+    if oldPreview then
+        oldPreview:Destroy()
+    end
+    
+    if PreviewPart then
+        PreviewPart:Destroy()
+        PreviewPart = nil
+    end
+end
+
+local function UpdatePreview()
+    ClearPreview()
+    
+    -- Menggunakan referensi screenGui (LMG2L["ArchimedesUI_1"])
+    if not CurrentSettings.Enabled or not panelTerbuka or not SelectedPart or not LMG2L["ArchimedesUI_1"].Parent then 
+        return 
+    end
+
+    PreviewPart = SelectedPart:Clone()
+    PreviewPart.Name = "Archimedes_Preview"
+    PreviewPart.Transparency = 0.5
+    PreviewPart.Color = Color3.fromRGB(0, 255, 100) 
+    PreviewPart.CanCollide = false
+    PreviewPart.Anchored = true
+    
+    for _, desc in pairs(PreviewPart:GetDescendants()) do
+        if desc:IsA("BaseScript") then desc:Destroy() end
+    end
+
+    PreviewPart.CFrame = CalculateCFrame(
+        SelectedPart.CFrame, 
+        SelectedPart.Size, 
+        CurrentSettings.Direction, 
+        CurrentSettings.Angle, 
+        CurrentSettings.FlipAxis, 
+        CurrentSettings.SwapSides
+    )
+    PreviewPart.Parent = Workspace
+end
+
+-- Integrasi Mouse Connection
+clickConnection = Mouse.Button1Down:Connect(function()
+    -- Validasi menggunakan LMG2L["ArchimedesUI_1"]
+    if not CurrentSettings.Enabled or not panelTerbuka or not LMG2L["ArchimedesUI_1"].Parent then 
+        return 
+    end
+
+    local target = Mouse.Target
+    if target and target:IsA("BasePart") and not target:IsDescendantOf(LMG2L["ArchimedesUI_1"]) then
+        if target.Name ~= "Archimedes_Preview" and target.Name ~= "Baseplate" then
+            SelectedPart = target
+            ActiveRenderFolder = nil 
+            UpdatePreview()
+        end
+    end
+end)
+
 return LMG2L["ArchimedesUI_1"], require;
