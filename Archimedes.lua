@@ -708,38 +708,6 @@ MiniButton.MouseButton1Click:Connect(function()
 	Tweening = false
 end)
 
-----------------------------------------------------
--- CLOSE
-----------------------------------------------------
-
-local CloseButton = LMG2L["CloseButton_29"]
-
-CloseButton.MouseButton1Click:Connect(function()
-
-	MiniButton.Active = false
-	CloseButton.Active = false
-
-	Panel.AnchorPoint = Vector2.new(0,0)
-
-	local Tween = TweenService:Create(
-		Panel,
-		TweenInfo.new(
-			0.22,
-			Enum.EasingStyle.Back,
-			Enum.EasingDirection.In
-		),
-		{
-			Size = UDim2.new(0,0,0,0),
-			BackgroundTransparency = 1
-		}
-	)
-
-	Tween:Play()
-	Tween.Completed:Wait()
-
-	Gui:Destroy()
-
-end)
 
 ----------------------------------------------------
 -- DRAG PC + MOBILE
@@ -1138,6 +1106,48 @@ undoButton.MouseButton1Click:Connect(function()
     end
 end)
 
+----------------------------------------------------
+-- CLOSE BUTTON CONTROLLER (INTEGRATED & PROTECTED)
+----------------------------------------------------
 
+local CloseButton = LMG2L["CloseButton_29"]
+local MiniButton  = LMG2L["MiniButton_16"]
+local Panel       = LMG2L["Panel_2"]
+
+CloseButton.MouseButton1Click:Connect(function()
+    -- 1. Putus koneksi mouse agar sistem berhenti total & cegah memory leak
+    if clickConnection then
+        clickConnection:Disconnect()
+        clickConnection = nil
+    end
+    
+    -- 2. Bersihkan state data agar preview hilang saat panel menutup
+    ClearPreview() 
+    SelectedPart = nil
+    
+    -- 3. Proteksi UI Interaction agar tombol tidak bisa diklik dua kali selama animasi
+    if MiniButton then MiniButton.Active = false end
+    if CloseButton then CloseButton.Active = false end
+
+    -- 4. Animasi Penutupan
+    if Panel then
+        Panel.AnchorPoint = Vector2.new(0, 0)
+        local Tween = TweenService:Create(
+            Panel,
+            TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+            {
+                Size = UDim2.new(0, 0, 0, 0),
+                BackgroundTransparency = 1
+            }
+        )
+        Tween:Play()
+        Tween.Completed:Wait()
+    end
+
+    -- 5. Hancurkan GUI dengan aman
+    if screenGui then
+        screenGui:Destroy()
+    end
+end)
 
 return LMG2L["ArchimedesUI_1"], require;
