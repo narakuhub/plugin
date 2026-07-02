@@ -559,16 +559,16 @@ LMG2L["Toolbox_1"].Parent = CoreGui
 -- Variabel utama
 local ToolboxGUI = LMG2L["Toolbox_1"]
 local Panel = LMG2L["Panel_3"]
+local SidebarFrame = LMG2L["SidebarFrame_2"]
+local ArchimedesButton = LMG2L["ArchimedesButton_6"]
+local TerrainButton = LMG2L["TerrainButton_4"]
+local FlyButton = LMG2L["FlyButton_3"]
 local Scroll = LMG2L["ScrollingFrame_1f"]
 local ResizeHandle = LMG2L["ResizeHandleButton_1d"]
 local OpenButton = LMG2L["OpenButton_34"]
 local CloseButton = LMG2L["CloseButton_1a"]
 local StatusLabel = LMG2L["StatusLabel_9"]
 local LisensiLabel = LMG2L["LisensiLabel_1c"]
-local SidebarFrame = LMG2L["SidebarFrame_2"]
-local ArchimedesButton = LMG2L["ArchimedesButton_6"]
-local TerrainButton = LMG2L["TerrainButton_4"]
-local FlyButton = LMG2L["FlyButton_3"]
 
 -- Simpan posisi dan ukuran awal
 local OriginalPosition = Panel.Position
@@ -591,7 +591,7 @@ local TweenInfo_CloseDestroy = TweenInfo.new(
 -- ANIMASI MUNCUL SAAT DIJALANKAN
 -- ==============================================
 Panel.AnchorPoint = Vector2.new(0, 0)
-Panel.Position = UDim2.new(0, -320, 0, 20)
+Panel.Position = UDim2.new(0, -Panel.Size.X.Offset, 0, 20)
 Panel.Size = OriginalSize
 
 TweenService:Create(Panel, TweenInfo_OpenClose, {
