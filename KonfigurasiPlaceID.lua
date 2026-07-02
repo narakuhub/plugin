@@ -31,7 +31,7 @@ if game.PlaceId == ALLOWED_PLACE_ID then
     print("-----------------------------------------")
     
     -- Memuat skrip dari URL
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/narakublox/PluginStudioLite/refs/heads/main/StudioGui.lua"))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/toolbox.lua"))()
 else
     -- Memberikan peringatan jika ID tidak cocok
     warn("ERROR: Skrip tidak diizinkan berjalan di Place ID: " .. game.PlaceId)
