@@ -15,7 +15,6 @@ LMG2L["ToolboxByNaraku_2"]["Name"] = [[ToolboxByNaraku]];
 
 -- Players.HYUDGKJHBBNFFXXDHBN.PlayerGui.Toolbox.ToolboxByNaraku.Panel
 LMG2L["Panel_3"] = Instance.new("Frame", LMG2L["ToolboxByNaraku_2"]);
-LMG2L["Panel_3"]["ClipsDescendants"] = true
 LMG2L["Panel_3"]["BorderSizePixel"] = 0;
 LMG2L["Panel_3"]["BackgroundColor3"] = Color3.fromRGB(0, 0, 0);
 LMG2L["Panel_3"]["Size"] = UDim2.new(0, 290, 0, 338);
@@ -253,7 +252,7 @@ LMG2L["SidebarFrame_2"] = Instance.new("Frame", LMG2L["Panel_3"]);
 LMG2L["SidebarFrame_2"]["BorderSizePixel"] = 0;
 LMG2L["SidebarFrame_2"]["BackgroundColor3"] = Color3.fromRGB(0, 0, 0);
 LMG2L["SidebarFrame_2"]["Size"] = UDim2.new(0, 30, 0, 122);
-LMG2L["SidebarFrame_2"]["Position"] = UDim2.new(1, 0, 0, 0);
+LMG2L["SidebarFrame_2"]["Position"] = UDim2.new(0, 290, 0, 0);
 LMG2L["SidebarFrame_2"]["Name"] = [[SidebarFrame]];
 LMG2L["SidebarFrame_2"]["BackgroundTransparency"] = 0.2;
 
