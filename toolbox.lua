@@ -601,8 +601,13 @@ TweenService:Create(Panel, TweenInfo_OpenClose, {
 -- ==============================================
 -- SISTEM BUKA / TUTUP SAMPING
 -- ==============================================
+local OpenPosition = OriginalPosition
+local ClosePosition = UDim2.new(0, -Panel.Size.X.Offset, 0, 20)
+local IsOpen = true
+
 OpenButton.MouseButton1Click:Connect(function()
     IsOpen = not IsOpen
+
     if IsOpen then
         OpenButton.Text = "<"
         TweenService:Create(Panel, TweenInfo_OpenClose, {
