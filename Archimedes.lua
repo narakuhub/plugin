@@ -961,4 +961,180 @@ clickConnection = Mouse.Button1Down:Connect(function()
     end
 end)
 
+-- ====================================================================
+-- INTERACTION CONTROLLER & TOGGLE ANIMATION - INTEGRATED
+-- ====================================================================
+
+local function updateAxisUI(chosenAxis)
+    CurrentSettings.Direction = chosenAxis
+    for axisName, button in pairs(axisButtons) do
+        button.BackgroundColor3 = (axisName == chosenAxis) and COLOR_ACTIVE or COLOR_NORMAL
+    end
+end
+
+for axisName, button in pairs(axisButtons) do
+    button.MouseButton1Click:Connect(function()
+        updateAxisUI(axisName)
+        UpdatePreview()
+    end)
+end
+updateAxisUI("X")
+
+-- Fungsi khusus untuk ChecklisButton (UI Baru)
+local function setupChecklistToggle(checkButton, settingName, defaultState)
+    CurrentSettings[settingName] = defaultState
+    
+    local function refreshToggleVisual()
+        local state = CurrentSettings[settingName]
+        -- Jika aktif, TextTransparency 0 (muncul), jika tidak 1 (sembunyi)
+        checkButton.TextTransparency = state and 0 or 1
+        -- Opsional: ubah warna text jika perlu
+        checkButton.TextColor3 = state and BG_TOGGLE_ON or Color3.fromRGB(79, 79, 79)
+    end
+    
+    refreshToggleVisual()
+    
+    checkButton.MouseButton1Click:Connect(function()
+        CurrentSettings[settingName] = not CurrentSettings[settingName]
+        refreshToggleVisual()
+        
+        if settingName == "Enabled" then
+            if not CurrentSettings.Enabled then
+                ClearPreview() 
+                SelectedPart = nil
+                ActiveRenderFolder = nil
+            else
+                UpdatePreview() 
+            end
+        else
+            UpdatePreview() 
+        end
+    end)
+end
+
+-- Integrasi ke komponen UI baru
+setupChecklistToggle(toggleComponents["FlipAxis"], "FlipAxis", false)
+setupChecklistToggle(toggleComponents["SwapSides"], "SwapSides", false)
+setupChecklistToggle(toggleComponents["Enabled"], "Enabled", true)
+
+-- Input Handling
+angleBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local val = tonumber(angleBox.Text) or 0
+    CurrentSettings.Angle = val
+    local ClampedAngle = math.clamp(math.abs(val), 0, 360)
+    uiStrokeAngle.Color = Color3.fromHSV(0.6, ClampedAngle / 360, 1)
+    UpdatePreview()
+end)
+
+amountBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local val = tonumber(amountBox.Text)
+    CurrentSettings.Amount = val and math.clamp(math.floor(val), 1, 500) or 1
+end)
+
+-- ====================================================================
+-- RENDER ENGINE ACTIONS - INTEGRATED
+-- ====================================================================
+
+local function GetMainFolder()
+    local mainFolder = Workspace:FindFirstChild("Archimedes By Naraku")
+    if not mainFolder then
+        mainFolder = Instance.new("Folder", Workspace)
+        mainFolder.Name = "Archimedes By Naraku"
+    end
+    return mainFolder
+end
+
+local function ExecuteRender(renderAllMode)
+    if not SelectedPart or not CurrentSettings.Enabled or not panelTerbuka then return end
+    ClearPreview()
+
+    local mainFolder = GetMainFolder()
+    
+    if not ActiveRenderFolder or not ActiveRenderFolder.Parent then
+        ActiveRenderFolder = Instance.new("Folder", mainFolder)
+        ActiveRenderFolder.Name = "Archimedes_Group_" .. tostring(FolderCounter)
+        FolderCounter = FolderCounter + 1
+    end
+
+    local loops = 1
+    if renderAllMode then
+        local absAngle = math.abs(CurrentSettings.Angle)
+        loops = (absAngle > 0) and math.floor(360 / absAngle) or 1
+    else
+        loops = CurrentSettings.Amount
+    end
+
+    local nextCFrame = SelectedPart.CFrame
+    local lastRenderedPart = nil
+
+    for i = 1, loops do
+        local newPart = SelectedPart:Clone()
+        newPart.Parent = ActiveRenderFolder
+        newPart.Anchored = true
+        
+        nextCFrame = CalculateCFrame(
+            nextCFrame, 
+            SelectedPart.Size, 
+            CurrentSettings.Direction, 
+            CurrentSettings.Angle, 
+            CurrentSettings.FlipAxis, 
+            CurrentSettings.SwapSides
+        )
+        
+        newPart.CFrame = nextCFrame
+        lastRenderedPart = newPart
+        
+        table.insert(RenderHistory, {
+            Part = newPart,
+            ParentFolder = ActiveRenderFolder
+        })
+    end
+    
+    if lastRenderedPart then
+        SelectedPart = lastRenderedPart
+    end
+    
+    UpdatePreview()
+end
+
+-- Koneksi Event ke Komponen UI Baru
+renderButton.MouseButton1Click:Connect(function()
+    ExecuteRender(false) 
+end)
+
+renderAllButton.MouseButton1Click:Connect(function()
+    ExecuteRender(true)  
+end)
+
+undoButton.MouseButton1Click:Connect(function()
+    if #RenderHistory > 0 then
+        local lastRenderData = table.remove(RenderHistory, #RenderHistory)
+        local targetPart = lastRenderData.Part
+        local parentFolder = lastRenderData.ParentFolder
+        
+        if targetPart and targetPart:IsA("BasePart") then
+            targetPart:Destroy()
+        end
+        
+        if parentFolder and #parentFolder:GetChildren() == 0 then
+            parentFolder:Destroy()
+            if ActiveRenderFolder == parentFolder then
+                ActiveRenderFolder = nil
+            end
+            FolderCounter = math.max(1, FolderCounter - 1)
+        end
+        
+        if #RenderHistory > 0 then
+            SelectedPart = RenderHistory[#RenderHistory].Part
+            ActiveRenderFolder = RenderHistory[#RenderHistory].ParentFolder
+        else
+            SelectedPart = nil
+            ActiveRenderFolder = nil
+        end
+        
+        ClearPreview()
+        UpdatePreview()
+    end
+end)
+
 return LMG2L["ArchimedesUI_1"], require;
