@@ -183,7 +183,7 @@ LMG2L["Status_15"]["FontFace"] = Font.new([[rbxasset://fonts/families/Sarpanch.j
 LMG2L["Status_15"]["TextColor3"] = Color3.fromRGB(8, 255, 31);
 LMG2L["Status_15"]["BackgroundTransparency"] = 1;
 LMG2L["Status_15"]["Size"] = UDim2.new(0, 136, 0, 18);
-LMG2L["Status_15"]["Text"] = [[• Ready - Archimede Active ✓]];
+LMG2L["Status_15"]["Text"] = [[• Ready - Archimedes Active ✓]];
 LMG2L["Status_15"]["Name"] = [[Status]];
 LMG2L["Status_15"]["Position"] = UDim2.new(0, 4, 0, 294);
 
