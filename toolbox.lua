@@ -747,34 +747,35 @@ TemplateFrame.Parent = nil
 -------------------------------------------------------------------------
 -- DATA CONFIGURATION & LOCAL STORAGE SYSTEM
 -------------------------------------------------------------------------
-local CurrentCategory = "Model" 
+local CurrentCategory = "Model"
 local CurrentSessionId = 0
 local SavedAssets = {
     Model = {},
     Decal = {},
     Audio = {}
 }
+local AssetInfoCache = {},
 
 local COLOR_ACTIVE = Color3.fromRGB(29, 171, 223)   
 local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36) 
 
--- Memuat data tersimpan dari file sistem executor
+-- Memuat data tersimpan
 if makefolder and isfile and readfile then
     pcall(function()
         makefolder("delta")
         if isfile("delta/toolbox_assets.json") then
             local decoded = HttpService:JSONDecode(readfile("delta/toolbox_assets.json"))
             if decoded then 
-                -- Update langsung variabel global SavedAssets
-                for k, v in pairs(decoded) do
-                    SavedAssets[k] = v
+                -- Update tabel SavedAssets secara langsung
+                for cat, list in pairs(decoded) do
+                    SavedAssets[cat] = list
                 end
             end
         end
     end)
 end
 
--- Menyimpan data ke file sistem executor dengan sinkronisasi instan
+-- Memperbarui data ke file & tabel secara instan (Live Update)
 local function SaveData()
     if writefile then
         pcall(function()
@@ -783,19 +784,44 @@ local function SaveData()
     end
 end
 
--- Membersihkan isi list rendering lama dengan efisien
+-- Membersihkan list dengan pengecekan aman
 local function ClearList()
-    -- Mematikan sementara UIListLayout agar tidak menghitung posisi setiap kali item dihapus
-    local layout = ScrollingFrame:FindFirstChildOfClass("UIListLayout")
-    if layout then layout.Enabled = false end
-    
     for _, item in ipairs(ScrollingFrame:GetChildren()) do
-        if item:IsA("Frame") and item ~= TemplateFrame then
+        if item:IsA("Frame") and item.Name ~= "CardAsset" then -- Pastikan nama template sesuai
             item:Destroy()
         end
     end
+end
+
+-- OPTIMASI RENDER (Gunakan Caching untuk mencegah lag)
+
+local function RenderAssets(searchQuery)
+    ClearList()
+    CurrentSessionId = CurrentSessionId + 1
+    local thisSession = CurrentSessionId
+    local targetList = SavedAssets[CurrentCategory] or {}
     
-    if layout then layout.Enabled = true end
+    for _, assetId in ipairs(targetList) do
+        task.spawn(function()
+            -- Cek Cache dulu sebelum panggil API
+            local info = AssetInfoCache[assetId]
+            if not info then
+                local success, result = pcall(function() return MarketplaceService:GetProductInfo(assetId) end)
+                if success and result then
+                    info = result
+                    AssetInfoCache[assetId] = info
+                end
+            end
+            
+            if thisSession ~= CurrentSessionId then return end
+            if info then
+                -- Render Card di sini...
+                local card = LMG2L["CardAsset_20"]:Clone()
+                -- (Lanjutkan logika cloning Anda)
+                card.Parent = ScrollingFrame
+            end
+        end)
+    end
 end
 
 -------------------------------------------------------------------------
