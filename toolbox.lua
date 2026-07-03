@@ -754,7 +754,6 @@ local SavedAssets = {
     Decal = {},
     Audio = {}
 }
-local AssetInfoCache = {},
 
 local COLOR_ACTIVE = Color3.fromRGB(29, 171, 223)   
 local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36) 
@@ -784,43 +783,12 @@ local function SaveData()
     end
 end
 
--- Membersihkan list dengan pengecekan aman
+-- Membersihkan isi list rendering lama
 local function ClearList()
     for _, item in ipairs(ScrollingFrame:GetChildren()) do
-        if item:IsA("Frame") and item.Name ~= "CardAsset" then -- Pastikan nama template sesuai
+        if item:IsA("Frame") and item ~= TemplateFrame then
             item:Destroy()
         end
-    end
-end
-
--- OPTIMASI RENDER (Gunakan Caching untuk mencegah lag)
-
-local function RenderAssets(searchQuery)
-    ClearList()
-    CurrentSessionId = CurrentSessionId + 1
-    local thisSession = CurrentSessionId
-    local targetList = SavedAssets[CurrentCategory] or {}
-    
-    for _, assetId in ipairs(targetList) do
-        task.spawn(function()
-            -- Cek Cache dulu sebelum panggil API
-            local info = AssetInfoCache[assetId]
-            if not info then
-                local success, result = pcall(function() return MarketplaceService:GetProductInfo(assetId) end)
-                if success and result then
-                    info = result
-                    AssetInfoCache[assetId] = info
-                end
-            end
-            
-            if thisSession ~= CurrentSessionId then return end
-            if info then
-                -- Render Card di sini...
-                local card = LMG2L["CardAsset_20"]:Clone()
-                -- (Lanjutkan logika cloning Anda)
-                card.Parent = ScrollingFrame
-            end
-        end)
     end
 end
 
