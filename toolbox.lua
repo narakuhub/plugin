@@ -551,10 +551,15 @@ LMG2L["OpenButton_34"]["Position"] = UDim2.new(0, 0, 0, -7);
 -- Layanan yang dibutuhkan
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
+local Player = game:GetService("Players").LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
 
--- Pindahkan ke CoreGui
-LMG2L["Toolbox_1"].Parent = CoreGui
+-- Pastikan StudioGui ada, jika tidak, buat atau tunggu
+local StudioGui = PlayerGui:FindFirstChild("StudioGui") or Instance.new("ScreenGui", PlayerGui)
+StudioGui.Name = "StudioGui"
+
+-- Pindahkan Toolbox_1 ke dalam StudioGui
+LMG2L["Toolbox_1"].Parent = StudioGui
 
 -- Variabel utama
 local ToolboxGUI = LMG2L["Toolbox_1"]
