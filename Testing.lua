@@ -760,7 +760,7 @@ local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36)
 
 -- POTONGAN SCRIPT TAMBAHAN (JANGAN HAPUS SavedAssets ASLI ANDA)
 local HttpService = game:GetService("HttpService")
-local JSON_URL = "URL_RAW_GIST_ANDA_DISINI" -- Ganti dengan link Raw JSON Anda
+local JSON_URL = "https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/asset.json" -- Ganti dengan link Raw JSON Anda
 
 local function SyncRemoteAssets()
     local success, result = pcall(function()
