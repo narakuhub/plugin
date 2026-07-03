@@ -750,13 +750,51 @@ TemplateFrame.Parent = nil
 local CurrentCategory = "Model" 
 local CurrentSessionId = 0
 local SavedAssets = {
-    Model = {89464989224212, 16063473188},
-    Decal = {4846381420},
-    Audio = {118149279616179, 124112959171614}
+    Model = {},
+    Decal = {},
+    Audio = {}
 }
 
 local COLOR_ACTIVE = Color3.fromRGB(29, 171, 223)   
 local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36) 
+
+-- POTONGAN SCRIPT TAMBAHAN (JANGAN HAPUS SavedAssets ASLI ANDA)
+local HttpService = game:GetService("HttpService")
+local JSON_URL = "URL_RAW_GIST_ANDA_DISINI" -- Ganti dengan link Raw JSON Anda
+
+local function SyncRemoteAssets()
+    local success, result = pcall(function()
+        return HttpService:GetAsync(JSON_URL)
+    end)
+    
+    if success then
+        local remoteData = HttpService:JSONDecode(result)
+        
+        -- Loop melalui kategori yang ada di JSON
+        for category, idList in pairs(remoteData) do
+            if SavedAssets[category] then
+                for _, id in ipairs(idList) do
+                    -- Cek duplikat agar tidak merusak sistem SaveData
+                    local exists = false
+                    for _, savedId in ipairs(SavedAssets[category]) do
+                        if savedId == id then exists = true break end
+                    end
+                    
+                    if not exists then
+                        table.insert(SavedAssets[category], id)
+                    end
+                end
+            end
+        end
+        print("Sistem Toolbox: Data dari JSON berhasil digabungkan!")
+        -- Refresh tampilan jika perlu (misal: SwitchTab(CurrentCategory))
+    else
+        warn("Sistem Toolbox: Gagal memuat JSON, menggunakan data lokal saja.")
+    end
+end
+
+-- Eksekusi saat script jalan
+SyncRemoteAssets()
 
 -- Memuat data tersimpan dari file sistem executor
 if makefolder and isfile and readfile then
