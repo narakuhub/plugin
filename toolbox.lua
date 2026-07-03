@@ -747,12 +747,12 @@ TemplateFrame.Parent = nil
 -------------------------------------------------------------------------
 -- DATA CONFIGURATION & LOCAL STORAGE SYSTEM
 -------------------------------------------------------------------------
-local CurrentCategory = "Model"
+local CurrentCategory = "Model" 
 local CurrentSessionId = 0
 local SavedAssets = {
-    Model = {},
-    Decal = {},
-    Audio = {}
+    Model = {89464989224212, 16063473188},
+    Decal = {4846381420},
+    Audio = {118149279616179, 124112959171614}
 }
 
 local COLOR_ACTIVE = Color3.fromRGB(29, 171, 223)   
