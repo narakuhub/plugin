@@ -750,9 +750,9 @@ TemplateFrame.Parent = nil
 local CurrentCategory = "Model" 
 local CurrentSessionId = 0
 local SavedAssets = {
-    Model = {1610552800, 7091676222, 11226194515, 2933671493, 16063473188, 866854517, 194104240, 6417333249},
-    Decal = {129081537080130, 122356848298481},
-    Audio = {130549379362306, 106130253924586, 139590201617508}
+    Model = {},
+    Decal = {},
+    Audio = {}
 }
 
 local COLOR_ACTIVE = Color3.fromRGB(29, 171, 223)   
