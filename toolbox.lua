@@ -758,23 +758,18 @@ local SavedAssets = {
 local COLOR_ACTIVE = Color3.fromRGB(29, 171, 223)   
 local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36) 
 
--- Memuat data tersimpan
+-- Memuat data tersimpan dari file sistem executor
 if makefolder and isfile and readfile then
     pcall(function()
         makefolder("delta")
         if isfile("delta/toolbox_assets.json") then
             local decoded = HttpService:JSONDecode(readfile("delta/toolbox_assets.json"))
-            if decoded then 
-                -- Update tabel SavedAssets secara langsung
-                for cat, list in pairs(decoded) do
-                    SavedAssets[cat] = list
-                end
-            end
+            if decoded then SavedAssets = decoded end
         end
     end)
 end
 
--- Memperbarui data ke file & tabel secara instan (Live Update)
+-- Menyimpan data ke file sistem executor
 local function SaveData()
     if writefile then
         pcall(function()
