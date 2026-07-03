@@ -764,12 +764,17 @@ if makefolder and isfile and readfile then
         makefolder("delta")
         if isfile("delta/toolbox_assets.json") then
             local decoded = HttpService:JSONDecode(readfile("delta/toolbox_assets.json"))
-            if decoded then SavedAssets = decoded end
+            if decoded then 
+                -- Update langsung variabel global SavedAssets
+                for k, v in pairs(decoded) do
+                    SavedAssets[k] = v
+                end
+            end
         end
     end)
 end
 
--- Menyimpan data ke file sistem executor
+-- Menyimpan data ke file sistem executor dengan sinkronisasi instan
 local function SaveData()
     if writefile then
         pcall(function()
@@ -778,13 +783,19 @@ local function SaveData()
     end
 end
 
--- Membersihkan isi list rendering lama
+-- Membersihkan isi list rendering lama dengan efisien
 local function ClearList()
+    -- Mematikan sementara UIListLayout agar tidak menghitung posisi setiap kali item dihapus
+    local layout = ScrollingFrame:FindFirstChildOfClass("UIListLayout")
+    if layout then layout.Enabled = false end
+    
     for _, item in ipairs(ScrollingFrame:GetChildren()) do
         if item:IsA("Frame") and item ~= TemplateFrame then
             item:Destroy()
         end
     end
+    
+    if layout then layout.Enabled = true end
 end
 
 -------------------------------------------------------------------------
