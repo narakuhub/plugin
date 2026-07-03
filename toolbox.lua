@@ -758,25 +758,39 @@ local SavedAssets = {
 local COLOR_ACTIVE = Color3.fromRGB(29, 171, 223)   
 local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36) 
 
+local HttpService = game:GetService("HttpService")
+
+-- Pastikan variabel SavedAssets terdefinisi
+if not SavedAssets then SavedAssets = {} end
+
 -- Memuat data tersimpan dari file sistem executor
-if makefolder and isfile and readfile then
-    pcall(function()
-        makefolder("delta")
-        if isfile("delta/toolbox_assets.json") then
-            local decoded = HttpService:JSONDecode(readfile("delta/toolbox_assets.json"))
-            if decoded then SavedAssets = decoded end
-        end
-    end)
+local function LoadData()
+    if makefolder and isfile and readfile then
+        pcall(function()
+            if not isfolder("delta") then makefolder("delta") end
+            if isfile("delta/toolbox_assets.json") then
+                local data = readfile("delta/toolbox_assets.json")
+                local decoded = HttpService:JSONDecode(data)
+                if decoded then 
+                    SavedAssets = decoded 
+                end
+            end
+        end)
+    end
 end
 
 -- Menyimpan data ke file sistem executor
 local function SaveData()
     if writefile then
         pcall(function()
+            if not isfolder("delta") then makefolder("delta") end
             writefile("delta/toolbox_assets.json", HttpService:JSONEncode(SavedAssets))
         end)
     end
 end
+
+-- Panggil LoadData saat script dijalankan
+LoadData()
 
 -- Membersihkan isi list rendering lama
 local function ClearList()
