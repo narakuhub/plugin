@@ -1143,6 +1143,55 @@ LMG2L["FlyButton_3"].MouseButton1Click:Connect(function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/narakuhub/narakuhub/refs/heads/main/FlyV3.lua"))()
 end)
 
+--==================================================
+-- ROBLOX CREATOR STORE SEARCH (SISTEM KEDUA)
+--==================================================
+
+local CREATOR_STORE_SEARCH = "https://apis.roblox.com/toolbox-service/v2/assets:search"
+
+local function SearchCreatorStore(query, page)
+    query = tostring(query or "")
+    page = tonumber(page) or 1
+
+    if query == "" then
+        return nil, "Search query kosong"
+    end
+
+    local requestBody = {
+        searchKeyword = query,
+        page = page,
+    }
+
+    local success, response = pcall(function()
+        return HttpService:RequestAsync({
+            Url = CREATOR_STORE_SEARCH,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+            },
+            Body = HttpService:JSONEncode(requestBody),
+        })
+    end)
+
+    if not success then
+        return nil, response
+    end
+
+    if not response.Success then
+        return nil, "HTTP " .. tostring(response.StatusCode) .. ": " .. tostring(response.StatusMessage)
+    end
+
+    local decodeSuccess, data = pcall(function()
+        return HttpService:JSONDecode(response.Body)
+    end)
+
+    if not decodeSuccess then
+        return nil, "Response bukan JSON yang valid"
+    end
+
+    return data
+end
+
 -------------------------------------------------------------------------
 -- FIX: LOGIC SEARCH (Filter Nama & Pembuat)
 -------------------------------------------------------------------------
