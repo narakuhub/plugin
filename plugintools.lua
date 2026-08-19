@@ -1378,4 +1378,343 @@ end
 UpdatePanelLayout(ORIGINAL_HEIGHT)
 UpdateOpenButtonIcon()
 
+-------------------------------------------------------------------------
+-- SERVICES & STUDIO LITE BINDINGS
+-------------------------------------------------------------------------
+local TweenService = game:GetService("TweenService")	
+local MarketplaceService = game:GetService("MarketplaceService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local StudioLiteFolder = game:GetService("ReplicatedStorage"):WaitForChild("StudioLiteFolder", 3)
+local LoadAssetRemote = StudioLiteFolder and StudioLiteFolder:WaitForChild("LoadAssetModelToPlayerGuiServerFunction", 3)
+local ClearAssetRemote = StudioLiteFolder and StudioLiteFolder:WaitForChild("ClearAssetModelToPlayerGuiServerFunction", 3)
+
+local StudioGui = PlayerGui:WaitForChild("StudioGui", 3)
+local ExplorerPanel = StudioGui and StudioGui:WaitForChild("ExplorerPanel", 3)
+local GetSelection = ExplorerPanel and ExplorerPanel:WaitForChild("GetSelection", 3)
+local SetSelection = ExplorerPanel and ExplorerPanel:WaitForChild("SetSelection", 3)
+
+local writefile = writefile or io.writefile
+local readfile = readfile or io.readfile
+local isfile = isfile or io.isfile
+local makefolder = makefolder or io.makefolder
+local setclipboard = setclipboard or toclipboard or print
+
+-------------------------------------------------------------------------
+-- PEMANGGILAN OBJEK UI (SINKRONISASI STRUKTUR LMG2L BARU)
+-------------------------------------------------------------------------
+local Gui = LMG2L["ScreenGui_1"]
+local MainPanel = LMG2L["Panel_3"]
+
+-- Tab Filter Buttons (Di dalam ScrollingTab_9)
+local AudioButton = LMG2L["AudioButton_b"]
+local ModelButton = LMG2L["ModelButton_12"]
+local PluginButton = LMG2L["PluginButton_19"]
+local DecalButton = LMG2L["DecalButton_21"]
+
+-- Bagian Atas Panel (Fungsi INSERT ID ke Workspace)
+local InsertIDBox = LMG2L["InsertBox_38"]
+local InsertButton = LMG2L["InsertButton_34"]
+
+-- Bagian Atas Panel (Fungsi SEARCH)
+local SearchBox = LMG2L["SearchBox_4"]
+local SearchButton = LMG2L["SearchButton_75"]
+
+-- Bagian Bawah Panel (Fungsi SAVE)
+local SaveIDBox = LMG2L["SaveBox_24"]
+local SaveIDButton = LMG2L["SaveButton_56"]
+
+-- List Kontainer dan Item Template
+local ScrollingFrame = LMG2L["ScrollingFrame_5a"]
+local TemplateFrame = LMG2L["Card_5d"]
+
+-- Membersihkan Template Master
+TemplateFrame.Visible = false
+TemplateFrame.Parent = nil
+
+-------------------------------------------------------------------------
+-- DATA CONFIGURATION & LOCAL STORAGE SYSTEM
+-------------------------------------------------------------------------
+local CurrentCategory = "Model" 
+local CurrentSessionId = 0
+local IsShowingSavedOnly = false -- Status filter SavedButton
+
+-- Dual Database System
+local MasterAssets = {} -- Data dari Assets.json (Katalog Utama)
+local SavedAssets = {   -- Data dari toolbox_assets.json (Asset Tersimpan User)
+    Model = {89464989224212, 16063473188},
+    Decal = {4846381420},
+    Audio = {118149279616179, 124112959171614},
+    Plugin = {}
+}
+
+local COLOR_ACTIVE = Color3.fromRGB(29, 171, 223)   
+local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36) 
+
+local HttpService = game:GetService("HttpService")
+
+-- Memuat Master Database (Assets.json) dari URL Remote
+local function FetchMasterAssets()
+    pcall(function()
+        local url = "https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/Assets.json"
+        local response = game:HttpGet(url)
+        if response then
+            local decoded = HttpService:JSONDecode(response)
+            if decoded then
+                MasterAssets = decoded
+            end
+        end
+    end)
+end
+
+-- Memuat Data User (toolbox_assets.json) dari Executor Storage
+local function LoadUserData()
+    if makefolder and isfile and readfile then
+        pcall(function()
+            if not isfolder("delta") then makefolder("delta") end
+            if isfile("delta/toolbox_assets.json") then
+                local data = readfile("delta/toolbox_assets.json")
+                local decoded = HttpService:JSONDecode(data)
+                if decoded then 
+                    SavedAssets = decoded 
+                    -- Pastikan kategori Plugin terinisialisasi
+                    if not SavedAssets.Plugin then SavedAssets.Plugin = {} end
+                end
+            end
+        end)
+    end
+end
+
+-- Menyimpan Data User ke Executor Storage
+local function SaveUserData()
+    if writefile then
+        pcall(function()
+            if not isfolder("delta") then makefolder("delta") end
+            writefile("delta/toolbox_assets.json", HttpService:JSONEncode(SavedAssets))
+        end)
+    end
+end
+
+-- Fungsi Helper Check Status Saved berdasarkan Asset ID
+local function IsAssetSaved(category, assetId)
+    local numericId = tonumber(assetId)
+    if not SavedAssets[category] then return false end
+    for _, id in ipairs(SavedAssets[category]) do
+        if tonumber(id) == numericId then
+            return true
+        end
+    end
+    return false
+end
+
+-- Inisialisasi Database
+FetchMasterAssets()
+LoadUserData()
+
+-- Membersihkan isi list rendering lama (Menggunakan ScrollingFrame_5a)
+local function ClearList()
+    for _, item in ipairs(ScrollingFrame:GetChildren()) do
+        if item:IsA("Frame") and item ~= TemplateFrame then
+            item:Destroy()
+        end
+    end
+end
+
+-------------------------------------------------------------------------
+-- LOGIKA DETEKSI KATEGORI OTOMATIS BERDASARKAN ROBLOX MARKETPLACE ID
+-------------------------------------------------------------------------
+local function GetCategoryFromAssetType(assetTypeId)
+    if assetTypeId == 13 or assetTypeId == 1 or assetTypeId == 2 or assetTypeId == 14 then
+        return "Decal"
+    elseif assetTypeId == 3 or assetTypeId == 34 then
+        return "Audio"
+    elseif assetTypeId == 38 then
+        return "Plugin"
+    else
+        return "Model"
+    end
+end
+
+-------------------------------------------------------------------------
+-- FUNGSI INSERT UTAMA (SISTEM FALLBACK INTELIJEN UNTUK WORKSPACE RESMI)
+-------------------------------------------------------------------------
+local function InsertAsset(assetId, category, statusTarget)
+    if statusTarget then
+        statusTarget.Text = "Working"
+    end
+    local stringId = tostring(assetId)
+
+    local successInfo, info = pcall(function() return MarketplaceService:GetProductInfo(assetId) end)
+    if successInfo and info then
+        category = GetCategoryFromAssetType(info.AssetTypeId)
+    else
+        if not category then category = "Model" end
+    end
+
+    -- Handler kalkulasi posisi Kamera Workspace jika dieksekusi di luar Studio Lite
+    local function SafeStudioFallback(obj)
+        if not obj then return end
+        local targetModel, isTemporary, tempContainer
+        if obj.ClassName == "Model" then
+            targetModel = obj
+            isTemporary = false
+        else
+            targetModel = Instance.new("Model")
+            obj.Parent = targetModel
+            tempContainer = targetModel
+            isTemporary = true
+        end
+
+        local currentCFrame, boundingSize = targetModel:GetBoundingBox()
+        local lowestYOffset = not targetModel.PrimaryPart and 0 or targetModel.PrimaryPart.Position.Y - boundingSize.Y / 2
+        local camCFrame = workspace.Camera.CFrame
+        local posX = math.floor((camCFrame.X + camCFrame.LookVector.X * 30) * 2) / 2
+        local posY = boundingSize.Y / 2 + lowestYOffset
+        local posZ = math.floor((camCFrame.Z + camCFrame.LookVector.Z * 30) * 2) / 2
+        
+        local calculatedPos = Vector3.new(posX, posY, posZ)
+        local raycastOrigin = Vector3.new(calculatedPos.X, camCFrame.Y, calculatedPos.Z)
+        local raycastResult = workspace:Raycast(raycastOrigin, Vector3.new(0, -camCFrame.Y, 0))
+        
+        if raycastResult then
+            local newY = raycastResult.Instance.Position.Y + raycastResult.Instance.Size.Y / 2 + boundingSize.Y / 2 + lowestYOffset
+            calculatedPos = Vector3.new(calculatedPos.X, newY, calculatedPos.Z)
+        end
+
+        targetModel:PivotTo(CFrame.new(calculatedPos) * currentCFrame.Rotation)
+
+        if isTemporary then
+            local finalObj = targetModel:GetChildren()[1]:Clone()
+            finalObj.Parent = workspace
+            if tempContainer then tempContainer:Destroy() end
+        else
+            targetModel.Parent = workspace
+            targetModel:MakeJoints()
+        end
+    end
+
+    -- JIKA ASSET ADALAH AUDIO
+    if category == "Audio" then
+        local sound = Instance.new("Sound")
+        sound.Name = (successInfo and info and info.Name) or "SoundAsset_" .. stringId
+        sound.SoundId = "rbxassetid://" .. stringId
+        sound.Volume = 0.5
+        sound.Parent = workspace
+        if statusTarget then statusTarget.Text = "Berhasil!" end
+        return
+    end
+
+    -- JIKA ASSET ADALAH DECAL
+    if category == "Decal" then
+        if GetSelection and SetSelection then
+            local currentSelection = nil
+            pcall(function() currentSelection = GetSelection:Invoke() end)
+            
+            if currentSelection and typeof(currentSelection) == "table" and #currentSelection >= 1 and currentSelection[1]:IsA("BasePart") then
+                local decal = Instance.new("Decal")
+                decal.Name = (successInfo and info and info.Name) or "Decal"
+                decal.Texture = "rbxthumb://type=Asset&id=" .. stringId .. "&w=420&h=420"
+                decal.Parent = currentSelection[1]
+                
+                task.wait(0.2)
+                pcall(function() SetSelection:Invoke({ decal }) end)
+                if statusTarget then statusTarget.Text = "Berhasil!" end
+            else
+                if statusTarget then statusTarget.Text = "Select Part!" end
+            end
+        else
+            local decal = Instance.new("Decal")
+            decal.Name = (successInfo and info and info.Name) or "DecalAsset_" .. stringId
+            decal.Texture = "rbxassetid://" .. stringId
+            decal.Parent = workspace
+            if statusTarget then statusTarget.Text = "Berhasil!" end
+        end
+        return
+    end
+
+    -- JIKA ASSET ADALAH MODEL ATAU PLUGIN
+    if LoadAssetRemote and LoadAssetRemote:IsA("RemoteFunction") then
+        local loadSuccess = false
+        pcall(function()
+            loadSuccess = LoadAssetRemote:InvokeServer(stringId)
+        end)
+
+        if loadSuccess then
+            local serverFolder = PlayerGui:WaitForChild(stringId, 5)
+            if serverFolder then
+                local assetClone = serverFolder:Clone()
+                local children = assetClone:GetChildren()
+                if #children == 0 then
+                    local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+                    if clientSuccess and clientObj then
+                        SafeStudioFallback(clientObj)
+                    else
+                        assetClone.Parent = workspace
+                    end
+                else
+                    for _, obj in pairs(children) do
+                        if obj.ClassName == "Folder" and ("Workspace Lighting MaterialService ReplicatedStorage ServerStorage ServerScriptService StarterGui StarterPack Teams SoundService StarterPlayer InsertService TextChatService"):find(obj.Name, 1, true) then
+                            if obj.Name == "ServerStorage" then
+                                for _, item in pairs(obj:GetChildren()) do item.Parent = _G.ss or game:GetService("ServerStorage") end
+                            elseif obj.Name == "ServerScriptService" then
+                                for _, item in pairs(obj:GetChildren()) do item.Parent = _G.sss or game:GetService("ServerScriptService") end
+                            elseif obj.Name == "StarterPlayer" then
+                                for _, inner in pairs(obj:GetChildren()) do
+                                    if inner.Name == "StarterPlayerScripts" or inner.Name == "StarterCharacterScripts" then
+                                        for _, scr in pairs(inner:GetChildren()) do
+                                            if not game.StarterPlayer[inner.Name]:FindFirstChild(scr.Name) then
+                                                scr.Parent = game.StarterPlayer[inner.Name]
+                                            end
+                                        end
+                                    else
+                                        inner.Parent = game.StarterPlayer
+                                    end
+                                end
+                            elseif obj.Name ~= "InsertService" and obj.Name ~= "TextChatService" then
+                                for _, item in pairs(obj:GetChildren()) do item.Parent = game[obj.Name] end
+                            end
+                        elseif obj:IsA("PostEffect") or obj.ClassName == "Sky" then
+                            obj.Parent = game.Lighting
+                        else
+                            SafeStudioFallback(obj)
+                        end
+                    end
+                end
+                assetClone:Destroy()
+                if ClearAssetRemote then pcall(function() ClearAssetRemote:InvokeServer(stringId) end) end
+                if statusTarget then statusTarget.Text = "Berhasil!" end
+            else
+                local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+                if clientSuccess and clientObj then
+                    SafeStudioFallback(clientObj)
+                    if statusTarget then statusTarget.Text = "Berhasil!" end
+                else
+                    if statusTarget then statusTarget.Text = "No Folder" end
+                end
+            end
+        else
+            local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+            if clientSuccess and clientObj then
+                SafeStudioFallback(clientObj)
+                if statusTarget then statusTarget.Text = "Berhasil!" end
+            else
+                if statusTarget then statusTarget.Text = "Gagal" end
+            end
+        end
+    else
+        local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+        if clientSuccess and clientObj then
+            SafeStudioFallback(clientObj)
+            if statusTarget then statusTarget.Text = "Berhasil!" end
+        else
+            if statusTarget then statusTarget.Text = "No Remote" end
+        end
+    end
+end
+
+
+
 return LMG2L["ScreenGui_1"], require;
