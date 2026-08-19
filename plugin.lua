@@ -2177,4 +2177,315 @@ local function ToggleSavedMode()
     RenderAssets(SearchBox and SearchBox.Text or "")
 end
 
+-------------------------------------------------------------------------
+-- ACTION LISTENERS & EVENT HANDLERS (SISTEM INTERAKSI UI BARU)
+-------------------------------------------------------------------------
+
+-- 1. TAB SWITCHING LISTENERS (ScrollingTab_9)
+if ModelButton then
+    ModelButton.MouseButton1Click:Connect(function() SwitchTab("Model") end)
+end
+
+if DecalButton then
+    DecalButton.MouseButton1Click:Connect(function() SwitchTab("Decal") end)
+end
+
+if AudioButton then
+    AudioButton.MouseButton1Click:Connect(function() SwitchTab("Audio") end)
+end
+
+if PluginButton then
+    PluginButton.MouseButton1Click:Connect(function() SwitchTab("Plugin") end)
+end
+
+-- 2. SAVED / BOOKMARK FILTER TOGGLE LISTENERS
+if SavedButton then
+    SavedButton.MouseButton1Click:Connect(function()
+        ToggleSavedMode()
+    end)
+end
+
+-- 3. SEARCH SYSTEM LISTENERS (SearchBox_4 & SearchButton_75)
+local function ExecuteSearch()
+    local query = SearchBox and SearchBox.Text or ""
+    RenderAssets(query)
+end
+
+if SearchButton then
+    SearchButton.MouseButton1Click:Connect(ExecuteSearch)
+end
+
+if SearchBox then
+    -- Live Search saat user mengetik
+    SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        task.spawn(function()
+            ExecuteSearch()
+        end)
+    end)
+    
+    -- Reset Placeholder Text saat Focus Lost jika kosong
+    SearchBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            ExecuteSearch()
+        end
+    end)
+end
+
+-- 4. INSERT ID SYSTEM LISTENERS (Top Input: InsertBox_38 & InsertButton_34)
+if InsertButton and InsertIDBox then
+    InsertButton.MouseButton1Click:Connect(function()
+        local inputText = InsertIDBox.Text
+        local cleanId = tonumber(inputText:match("%d+"))
+        local targetTextObj = InsertButton:FindFirstChildOfClass("TextLabel") or InsertButton
+
+        if cleanId and tostring(cleanId) == inputText:match("%d+") then
+            if targetTextObj and targetTextObj:IsA("TextLabel") then
+                targetTextObj.Text = "WORKING"
+            end
+            
+            InsertAsset(cleanId, nil, targetTextObj)
+            
+            task.wait(1.5)
+            if targetTextObj and targetTextObj:IsA("TextLabel") then
+                targetTextObj.Text = "INSERT"
+            end
+            InsertIDBox.Text = ""
+        else
+            local origText = InsertIDBox.Text
+            InsertIDBox.Text = "Harus ID Angka!"
+            task.wait(1.5)
+            InsertIDBox.Text = ""
+        end
+    end)
+end
+
+-- 5. SAVE ID SYSTEM LISTENERS (SaveBox_24 & SaveButton_56)
+if SaveIDButton and SaveIDBox then
+    SaveIDButton.MouseButton1Click:Connect(function()
+        local inputText = SaveIDBox.Text
+        local cleanId = tonumber(inputText:match("%d+"))
+
+        if cleanId and tostring(cleanId) == inputText:match("%d+") then
+            -- Auto Detect Category Asset via Marketplace
+            task.spawn(function()
+                local successInfo, info = pcall(function() 
+                    return MarketplaceService:GetProductInfo(cleanId) 
+                end)
+                
+                local targetCategory = CurrentCategory
+                if successInfo and info then
+                    targetCategory = GetCategoryFromAssetType(info.AssetTypeId)
+                end
+
+                AddSavedAsset(targetCategory, cleanId)
+                SaveIDBox.Text = "Tersimpan!"
+                
+                -- Re-render jika sedang di tab atau mode yang sama
+                if CurrentTabMode == "Saved" and CurrentCategory == targetCategory then
+                    RenderAssets(SearchBox and SearchBox.Text or "")
+                end
+
+                task.wait(1.5)
+                SaveIDBox.Text = ""
+            end)
+        else
+            SaveIDBox.Text = "Harus ID Angka!"
+            task.wait(1.5)
+            SaveIDBox.Text = ""
+        end
+    end)
+end
+
+-------------------------------------------------------------------------
+-- INITIALIZATION & RENDER PERTAMA
+-------------------------------------------------------------------------
+-- Eksekusi Render Pertama kali saat UI dimuat
+SwitchTab("Model")
+
+-------------------------------------------------------------------------
+-- FIX & REFINED: ACTION LISTENERS & EVENT HANDLERS
+-------------------------------------------------------------------------
+
+-- 1. TAB SWITCHING LISTENERS (ScrollingTab_9)
+if ModelButton then
+    ModelButton.MouseButton1Click:Connect(function() SwitchTab("Model") end)
+end
+
+if DecalButton then
+    DecalButton.MouseButton1Click:Connect(function() SwitchTab("Decal") end)
+end
+
+if AudioButton then
+    AudioButton.MouseButton1Click:Connect(function() SwitchTab("Audio") end)
+end
+
+if PluginButton then
+    PluginButton.MouseButton1Click:Connect(function() SwitchTab("Plugin") end)
+end
+
+-- 2. SAVED / BOOKMARK FILTER TOGGLE LISTENERS
+if SavedButton then
+    SavedButton.MouseButton1Click:Connect(function()
+        ToggleSavedMode()
+    end)
+end
+
+-------------------------------------------------------------------------
+-- FUNGSIONALITAS 2: SEARCH SYSTEM (Nama, ID, & Pembuat)
+-------------------------------------------------------------------------
+local function HandleSearch()
+    local inputText = SearchBox and SearchBox.Text or ""
+    local cleanQuery = inputText:lower():match("^%s*(.-)%s*$") or ""
+    
+    if cleanQuery == "" or cleanQuery == "search asset..." then
+        RenderAssets("")
+    else
+        local searchBtnText = SearchButton and (SearchButton:FindFirstChildOfClass("TextLabel") or SearchButton)
+        local origText = searchBtnText and searchBtnText:IsA("TextLabel") and searchBtnText.Text or "→"
+        
+        if searchBtnText and searchBtnText:IsA("TextLabel") then
+            searchBtnText.Text = "..."
+        end
+        
+        RenderAssets(cleanQuery)
+        
+        task.wait(0.5)
+        if searchBtnText and searchBtnText:IsA("TextLabel") then
+            searchBtnText.Text = origText
+        end
+    end
+end
+
+if SearchButton then
+    SearchButton.MouseButton1Click:Connect(HandleSearch)
+end
+
+if SearchBox then
+    -- Deteksi ketikan dinamis atau pengosongan teks pada Search Box
+    SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local currentText = SearchBox.Text:lower():match("^%s*(.-)%s*$") or ""
+        if currentText == "" or currentText == "search asset..." then
+            RenderAssets("")
+        else
+            -- Live Search saat user mengetik
+            RenderAssets(currentText)
+        end
+    end)
+    
+    SearchBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            HandleSearch()
+        end
+    end)
+end
+
+-------------------------------------------------------------------------
+-- FUNGSIONALITAS 1: INSERT BUTTON (Top Section: InsertBox_38 & InsertButton_34)
+-------------------------------------------------------------------------
+if InsertButton and InsertIDBox then
+    InsertButton.MouseButton1Click:Connect(function()
+        local inputText = InsertIDBox.Text
+        local cleanId = tonumber(inputText:match("%d+"))
+        local targetTextObj = InsertButton:FindFirstChildOfClass("TextLabel") or InsertButton
+
+        if cleanId and tostring(cleanId) == inputText:match("%d+") then
+            if targetTextObj and targetTextObj:IsA("TextLabel") then
+                targetTextObj.Text = "WORKING"
+            end
+            
+            InsertAsset(cleanId, nil, targetTextObj)
+            
+            task.wait(1.5)
+            if targetTextObj and targetTextObj:IsA("TextLabel") then
+                targetTextObj.Text = "INSERT"
+            end
+            InsertIDBox.Text = ""
+        else
+            InsertIDBox.Text = "Harus ID Angka!"
+            task.wait(1.5)
+            InsertIDBox.Text = ""
+        end
+    end)
+end
+
+-------------------------------------------------------------------------
+-- FUNGSIONALITAS 3: SAVE BUTTON (Validasi Ganda Anti-Duplikasi Cross-Category)
+-------------------------------------------------------------------------
+if SaveIDButton and SaveIDBox then
+    SaveIDButton.MouseButton1Click:Connect(function()
+        local inputText = SaveIDBox.Text
+        local cleanId = tonumber(inputText:match("%d+"))
+        local saveBtnText = SaveIDButton:FindFirstChildOfClass("TextLabel") or SaveIDButton
+
+        if not cleanId then
+            SaveIDBox.Text = "Harus ID Angka!"
+            task.wait(1.5)
+            SaveIDBox.Text = ""
+            return
+        end
+
+        if saveBtnText and saveBtnText:IsA("TextLabel") then
+            saveBtnText.Text = "..."
+        end
+
+        -- Validasi Ganda: Cek apakah ID sudah tersimpan di kategori manapun
+        local isDuplicate = false
+        for _, assetList in pairs(SavedAssets) do
+            for _, id in ipairs(assetList) do
+                if tonumber(id) == cleanId then
+                    isDuplicate = true
+                    break
+                end
+            end
+            if isDuplicate then break end
+        end
+
+        if isDuplicate then
+            SaveIDBox.Text = "Sudah Ada!"
+            task.wait(1.5)
+            if saveBtnText and saveBtnText:IsA("TextLabel") then
+                saveBtnText.Text = "SAVE"
+            end
+            SaveIDBox.Text = ""
+            return
+        end
+
+        -- Fetch Info Asset via Marketplace Service
+        local success, info = pcall(function() 
+            return MarketplaceService:GetProductInfo(cleanId) 
+        end)
+
+        if success and info then
+            local cat = GetCategoryFromAssetType(info.AssetTypeId)
+            
+            if not SavedAssets[cat] then
+                SavedAssets[cat] = {}
+            end
+            
+            table.insert(SavedAssets[cat], cleanId)
+            SaveSavedAssets() -- Menyimpan ke file toolbox_assets.json
+            
+            SaveIDBox.Text = "Tersimpan!"
+            
+            -- Otomatis pindah ke Tab Kategori yang sesuai dan render ulang
+            task.wait(0.5)
+            SwitchTab(cat)
+        else
+            SaveIDBox.Text = "ID Gagal Validasi!"
+        end
+        
+        task.wait(1.5)
+        if saveBtnText and saveBtnText:IsA("TextLabel") then
+            saveBtnText.Text = "SAVE"
+        end
+        SaveIDBox.Text = ""
+    end)
+end
+
+-------------------------------------------------------------------------
+-- INITIALIZATION RUN
+-------------------------------------------------------------------------
+-- Jalankan Tab Awal
+SwitchTab("Model")
+
 return LMG2L["ScreenGui_1"], require;
