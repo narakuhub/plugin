@@ -1519,48 +1519,53 @@ local ExplorerPanel = StudioGui and StudioGui:WaitForChild("ExplorerPanel", 3)
 local GetSelection = ExplorerPanel and ExplorerPanel:WaitForChild("GetSelection", 3)
 local SetSelection = ExplorerPanel and ExplorerPanel:WaitForChild("SetSelection", 3)
 
-local writefile = writefile or io.writefile
-local readfile = readfile or io.readfile
-local isfile = isfile or io.isfile
-local makefolder = makefolder or io.makefolder
+-- Safety bindings untuk File I/O
+local writefile = writefile or (io and io.writefile)
+local readfile = readfile or (io and io.readfile)
+local isfile = isfile or (io and io.isfile)
+local isfolder = isfolder or (io and io.isfolder)
+local makefolder = makefolder or (io and io.makefolder)
 local setclipboard = setclipboard or toclipboard or print
 
 -------------------------------------------------------------------------
 -- PEMANGGILAN OBJEK UI (SINKRONISASI STRUKTUR LMG2L BARU)
 -------------------------------------------------------------------------
-local Gui = LMG2L["ScreenGui_1"]
-local MainPanel = LMG2L["Panel_3"]
+-- Pastikan pemanggilan tabel LMG2L aman dari nil value
+local Gui = LMG2L and LMG2L["ScreenGui_1"]
+local MainPanel = LMG2L and LMG2L["Panel_3"]
 
 -- Tab Filter Buttons (Di dalam ScrollingTab_9)
-local AudioButton = LMG2L["AudioButton_b"]
-local ModelButton = LMG2L["ModelButton_12"]
-local PluginButton = LMG2L["PluginButton_19"]
-local DecalButton = LMG2L["DecalButton_21"]
+local AudioButton = LMG2L and LMG2L["AudioButton_b"]
+local ModelButton = LMG2L and LMG2L["ModelButton_12"]
+local PluginButton = LMG2L and LMG2L["PluginButton_19"]
+local DecalButton = LMG2L and LMG2L["DecalButton_21"]
 
 -- Toggle Filter Saved Assets Button
-local CardSaved = LMG2L["CardSaved_2a"]
-local SavedButton = LMG2L["SavedButton_2c"]
-local SavedIconIndicator = LMG2L["IconSaved_2e"]
+local CardSaved = LMG2L and LMG2L["CardSaved_2a"]
+local SavedButton = LMG2L and LMG2L["SavedButton_2c"]
+local SavedIconIndicator = LMG2L and LMG2L["IconSaved_2e"]
 
 -- Bagian Atas Panel (Fungsi INSERT ID ke Workspace)
-local InsertIDBox = LMG2L["InsertBox_38"]
-local InsertButton = LMG2L["InsertButton_34"]
+local InsertIDBox = LMG2L and LMG2L["InsertBox_38"]
+local InsertButton = LMG2L and LMG2L["InsertButton_34"]
 
 -- Bagian Atas Panel (Fungsi SEARCH)
-local SearchBox = LMG2L["SearchBox_4"]
-local SearchButton = LMG2L["SearchButton_75"]
+local SearchBox = LMG2L and LMG2L["SearchBox_4"]
+local SearchButton = LMG2L and LMG2L["SearchButton_75"]
 
 -- Bagian Bawah Panel (Fungsi SAVE)
-local SaveIDBox = LMG2L["SaveBox_24"]
-local SaveIDButton = LMG2L["SaveButton_56"]
+local SaveIDBox = LMG2L and LMG2L["SaveBox_24"]
+local SaveIDButton = LMG2L and LMG2L["SaveButton_56"]
 
 -- List Kontainer dan Item Template
-local ScrollingFrame = LMG2L["ScrollingFrame_5a"]
-local TemplateFrame = LMG2L["Card_5d"]
+local ScrollingFrame = LMG2L and LMG2L["ScrollingFrame_5a"]
+local TemplateFrame = LMG2L and LMG2L["Card_5d"]
 
--- Membersihkan Template Master
-TemplateFrame.Visible = false
-TemplateFrame.Parent = nil
+-- Membersihkan Template Master dengan pemeriksaan kondisi aman (Pencegah Crash)
+if TemplateFrame then
+    TemplateFrame.Visible = false
+    TemplateFrame.Parent = nil
+end
 
 -------------------------------------------------------------------------
 -- DATA CONFIGURATION & LOCAL STORAGE SYSTEM (SINGLE FETCH & SAVED FILTER)
