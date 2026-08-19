@@ -1500,4 +1500,78 @@ end
 UpdatePanelLayout(ORIGINAL_HEIGHT)
 UpdateOpenButtonIcon()
 
+-------------------------------------------------------------------------
+-- SERVICES & STUDIO LITE BINDINGS
+-------------------------------------------------------------------------
+local TweenService = game:GetService("TweenService")	
+local MarketplaceService = game:GetService("MarketplaceService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local StudioLiteFolder = game:GetService("ReplicatedStorage"):WaitForChild("StudioLiteFolder", 3)
+local LoadAssetRemote = StudioLiteFolder and StudioLiteFolder:WaitForChild("LoadAssetModelToPlayerGuiServerFunction", 3)
+local ClearAssetRemote = StudioLiteFolder and StudioLiteFolder:WaitForChild("ClearAssetModelToPlayerGuiServerFunction", 3)
+
+local StudioGui = PlayerGui:WaitForChild("StudioGui", 3)
+local ExplorerPanel = StudioGui and StudioGui:WaitForChild("ExplorerPanel", 3)
+local GetSelection = ExplorerPanel and ExplorerPanel:WaitForChild("GetSelection", 3)
+local SetSelection = ExplorerPanel and ExplorerPanel:WaitForChild("SetSelection", 3)
+
+local writefile = writefile or io.writefile
+local readfile = readfile or io.readfile
+local isfile = isfile or io.isfile
+local makefolder = makefolder or io.makefolder
+local setclipboard = setclipboard or toclipboard or print
+
+-------------------------------------------------------------------------
+-- SINKRONISASI STRUKTUR OBJEK UI (HARD CODE SCREENGUI BARU)
+-------------------------------------------------------------------------
+-- Root Container
+local ScreenGui = LMG2L["ScreenGui_1"]
+local NarakuPlugin = LMG2L["NarakuPlugin_2"]
+local MainPanel = LMG2L["Panel_3"]
+
+-- Tab Filter Buttons (Dari ScrollingTab)
+local AudioButton = LMG2L["AudioButton_b"]
+local ModelButton = LMG2L["ModelButton_12"]
+local PluginButton = LMG2L["PluginButton_19"]
+local DecalButton = LMG2L["DecalButton_21"]
+
+-- Insert ID System (Top Section)
+local InsertIDBox = LMG2L["InsertBox_38"]
+local InsertButton = LMG2L["InsertButton_34"]
+
+-- Save ID System (Middle Section)
+local SaveIDBox = LMG2L["SaveBox_24"]
+local SaveIDButton = LMG2L["SaveButton_56"]
+
+-- Search System
+local SearchBox = LMG2L["SearchBox_4"]
+local SearchButton = LMG2L["SearchButton_75"]
+
+-- Saved / Bookmark Toggle
+local CardSaved = LMG2L["CardSaved_2a"]
+local SavedButton = LMG2L["SavedButton_2c"]
+
+-- Card Menu
+local CardMenu = LMG2L["CardMenu_3d"]
+local MenuButton = LMG2L["MenuButton_54"]
+
+-- List Container, Status, & Template Frame
+local ScrollingFrame = LMG2L["ScrollingFrame_5a"]
+local AmountAsset = LMG2L["AmountAsset_4a"]
+local TemplateFrame = LMG2L["Card_5d"]
+
+-------------------------------------------------------------------------
+-- INISIALISASI TEMPLATE ASSET
+-------------------------------------------------------------------------
+-- Clone template master sebelum di-detach dari parent agar aman digunakan nanti
+local AssetTemplate = TemplateFrame:Clone()
+
+-- Clean Up Template Master dari Container ScrollingFrame
+TemplateFrame.Visible = false
+TemplateFrame.Parent = nil
+
 return LMG2L["ScreenGui_1"], require;
