@@ -2133,4 +2133,109 @@ InsertButton.MouseButton1Click:Connect(function()
     end
 end)
 
+-------------------------------------------------------------------------
+-- FIX: LOGIC SEARCH & SAVE ID BUTTON
+-------------------------------------------------------------------------
+
+-- FUNGSIONALITAS 2: SEARCH BUTTON & DYNAMIC LISTENER
+SearchButton.MouseButton1Click:Connect(function()
+    local inputText = SearchBox.Text
+    if inputText == "" or inputText:lower() == "search asset..." then
+        RenderAssets("")
+    else
+        local originalText = SearchButton.Text
+        SearchButton.Text = "..."
+        RenderAssets(inputText)
+        task.wait(0.5)
+        SearchButton.Text = originalText
+    end
+end)
+
+-- Deteksi Ketikan Dinamis pada SearchBox
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local currentText = SearchBox.Text
+    if currentText == "" or currentText:lower() == "search asset..." then
+        RenderAssets("")
+    else
+        -- Melakukan filter real-time saat user mengetik
+        RenderAssets(currentText)
+    end
+end)
+
+-- FUNGSIONALITAS 3: SAVE BUTTON (Validasi Anti Duplikasi & Auto Detect Kategori)
+SaveIDButton.MouseButton1Click:Connect(function()
+    local rawText = SaveIDBox.Text
+    local cleanId = tonumber(rawText:match("%d+"))
+
+    if not cleanId then
+        SaveIDBox.Text = "Harus ID Angka!"
+        SaveIDBox.TextTransparency = 0
+        task.wait(1.5)
+        
+        if SaveIDBox.Text == "Harus ID Angka!" then
+            SaveIDBox.Text = "Masukan ID save asset..."
+            SaveIDBox.TextTransparency = 0.5
+        end
+        return
+    end
+
+    -- Menampilkan ID bersih yang diekstrak pada kotak input
+    SaveIDBox.Text = tostring(cleanId)
+    SaveIDBox.TextTransparency = 0
+    SaveIDBox.TextColor3 = COLOR_TEXT_ACTIVE
+
+    SaveIDButton.Text = "..."
+    
+    -- Validasi Anti Duplikasi di Seluruh Kategori SavedAssets
+    local isDuplicate = false
+    for _, assetList in pairs(SavedAssets) do
+        if typeof(assetList) == "table" then
+            for _, id in ipairs(assetList) do
+                if tonumber(id) == cleanId then
+                    isDuplicate = true
+                    break
+                end
+            end
+        end
+        if isDuplicate then break end
+    end
+
+    if isDuplicate then
+        SaveIDBox.Text = "Sudah Ada!"
+        task.wait(1.5)
+        SaveIDButton.Text = "SAVE"
+        -- Teks ID tetap dipertahankan jika tidak di-reset oleh pesan peringatan
+        SaveIDBox.Text = tostring(cleanId)
+        return
+    end
+
+    -- Validasi Keberadaan Asset via Roblox Marketplace
+    local success, info = pcall(function() return MarketplaceService:GetProductInfo(cleanId) end)
+
+    if success and info then
+        local targetCat = GetCategoryFromAssetType(info.AssetTypeId)
+        
+        if not SavedAssets[targetCat] then
+            SavedAssets[targetCat] = {}
+        end
+        
+        -- Tambahkan ke tabel lokal & simpan ke delta/toolbox_assets.json
+        table.insert(SavedAssets[targetCat], cleanId)
+        SaveUserData()
+        
+        -- Berpindah Tab secara otomatis ke kategori aset yang disimpan
+        SwitchTab(targetCat) 
+        
+        SaveIDButton.Text = "SAVED!"
+        task.wait(1.5)
+        SaveIDButton.Text = "SAVE"
+        -- Teks ID tetap bertahan di SaveIDBox (Penghapusan Teks Dilakukan Manual oleh User)
+    else
+        SaveIDBox.Text = "ID Gagal Validasi!"
+        task.wait(1.5)
+        SaveIDButton.Text = "SAVE"
+        SaveIDBox.Text = tostring(cleanId)
+    end
+end)
+
 return LMG2L["ScreenGui_1"], require;
