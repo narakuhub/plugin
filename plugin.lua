@@ -1064,39 +1064,50 @@ local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 
 -- =========================================================
--- SCREEN GUI
+-- CONSTANTS & CONFIGURATION
+-- =========================================================
+
+local ARROW_RIGHT = "rbxassetid://138472587694798"
+local ARROW_LEFT = "rbxassetid://82611145930357"
+
+local TWEEN_OPEN_CLOSE = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local TWEEN_DESTROY = TweenInfo.new(0.20, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
+
+local MAX_HEIGHT = 700
+
+-- =========================================================
+-- SCREEN GUI INITIALIZATION
 -- =========================================================
 
 local ScreenGui = LMG2L["ScreenGui_1"]
 local NarakuPlugin = LMG2L["NarakuPlugin_2"]
 
 if not ScreenGui then
-    ScreenGui = CoreGui:FindFirstChild("ScreenGui_1")
-
-    if not ScreenGui then
-        ScreenGui = Instance.new("ScreenGui")
-        ScreenGui.Name = "ScreenGui_1"
-        ScreenGui.ResetOnSpawn = false
-        ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        ScreenGui.Parent = CoreGui
-    end
+	ScreenGui = CoreGui:FindFirstChild("ScreenGui_1")
+	if not ScreenGui then
+		ScreenGui = Instance.new("ScreenGui")
+		ScreenGui.Name = "ScreenGui_1"
+		ScreenGui.ResetOnSpawn = false
+		ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		ScreenGui.Parent = CoreGui
+	end
 else
-    ScreenGui.Parent = CoreGui
+	ScreenGui.Parent = CoreGui
 end
 
 if not NarakuPlugin then
-    NarakuPlugin = ScreenGui:FindFirstChild("NarakuPlugin")
+	NarakuPlugin = ScreenGui:FindFirstChild("NarakuPlugin")
 end
 
 if not NarakuPlugin then
-    warn("NARAKU PLUGIN: NarakuPlugin tidak ditemukan.")
-    return
+	warn("NARAKU PLUGIN: NarakuPlugin tidak ditemukan.")
+	return
 end
 
 NarakuPlugin.Parent = ScreenGui
 
 -- =========================================================
--- MAIN OBJECT
+-- UI ELEMENTS
 -- =========================================================
 
 local Panel = LMG2L["Panel_3"]
@@ -1129,7 +1140,7 @@ local ResizeHandle = LMG2L["ResizeHandleButton_2f"]
 local OpenButton = LMG2L["OpenButton_78"]
 
 -- =========================================================
--- ORIGINAL VALUES
+-- ORIGINAL VALUES & TRANSFORM CACHE
 -- =========================================================
 
 local ORIGINAL_PANEL_SIZE = Panel.Size
@@ -1137,9 +1148,7 @@ local ORIGINAL_PANEL_POSITION = Panel.Position
 
 local PANEL_WIDTH = ORIGINAL_PANEL_SIZE.X.Offset
 local ORIGINAL_HEIGHT = ORIGINAL_PANEL_SIZE.Y.Offset
-
 local MIN_HEIGHT = ORIGINAL_HEIGHT
-local MAX_HEIGHT = 700
 
 local ORIGINAL_SCROLL_POSITION = ScrollingFrame.Position
 local ORIGINAL_SCROLL_SIZE = ScrollingFrame.Size
@@ -1160,20 +1169,19 @@ local ORIGINAL_CARD_SAVED_POSITION = CardSaved.Position
 local ORIGINAL_CARD_MENU_POSITION = CardMenu.Position
 
 -- =========================================================
--- PANEL POSITION
+-- PANEL POSITIONS
 -- =========================================================
 
 local OPEN_POSITION = ORIGINAL_PANEL_POSITION
-
 local CLOSE_POSITION = UDim2.new(
-    ORIGINAL_PANEL_POSITION.X.Scale,
-    ORIGINAL_PANEL_POSITION.X.Offset - PANEL_WIDTH - 10,
-    ORIGINAL_PANEL_POSITION.Y.Scale,
-    ORIGINAL_PANEL_POSITION.Y.Offset
+	ORIGINAL_PANEL_POSITION.X.Scale,
+	ORIGINAL_PANEL_POSITION.X.Offset - PANEL_WIDTH - 10,
+	ORIGINAL_PANEL_POSITION.Y.Scale,
+	ORIGINAL_PANEL_POSITION.Y.Offset
 )
 
 -- =========================================================
--- STATE
+-- STATE MANAGEMENT
 -- =========================================================
 
 local IsOpen = true
@@ -1184,111 +1192,93 @@ local StartMouseY = 0
 local StartHeight = ORIGINAL_HEIGHT
 
 -- =========================================================
--- TWEEN
+-- HELPER FUNCTIONS
 -- =========================================================
-
-local TweenOpenClose = TweenInfo.new(
-    0.25,
-    Enum.EasingStyle.Quad,
-    Enum.EasingDirection.Out
-)
-
-local TweenDestroy = TweenInfo.new(
-    0.20,
-    Enum.EasingStyle.Sine,
-    Enum.EasingDirection.In
-)
-
--- =========================================================
--- OPEN BUTTON ICON
--- =========================================================
-
-local ARROW_RIGHT = "rbxassetid://138472587694798"
-local ARROW_LEFT = "rbxassetid://82611145930357"
 
 local function UpdateOpenButtonIcon()
-    if IsDestroyed or not OpenButton then
-        return
-    end
-
-    OpenButton.Image = IsOpen
-        and ARROW_LEFT
-        or ARROW_RIGHT
+	if IsDestroyed or not OpenButton then return end
+	OpenButton.Image = IsOpen and ARROW_LEFT or ARROW_RIGHT
 end
-
--- =========================================================
--- PANEL LAYOUT
--- =========================================================
 
 local function UpdatePanelLayout(NewHeight)
-    if IsDestroyed then
-        return
-    end
+	if IsDestroyed then return end
 
-    NewHeight = math.clamp(
-        NewHeight,
-        MIN_HEIGHT,
-        MAX_HEIGHT
-    )
+	NewHeight = math.clamp(NewHeight, MIN_HEIGHT, MAX_HEIGHT)
 
-    Panel.Size = UDim2.new(
-        ORIGINAL_PANEL_SIZE.X.Scale,
-        PANEL_WIDTH,
-        ORIGINAL_PANEL_SIZE.Y.Scale,
-        NewHeight
-    )
+	Panel.Size = UDim2.new(
+		ORIGINAL_PANEL_SIZE.X.Scale,
+		PANEL_WIDTH,
+		ORIGINAL_PANEL_SIZE.Y.Scale,
+		NewHeight
+	)
 
-    local ScrollTop = ORIGINAL_SCROLL_POSITION.Y.Offset
-    local ScrollBottomPadding = 16
+	local ScrollTop = ORIGINAL_SCROLL_POSITION.Y.Offset
+	local ScrollBottomPadding = 16
+	local ScrollHeight = math.max(50, NewHeight - ScrollTop - ScrollBottomPadding)
 
-    local ScrollHeight = math.max(
-        50,
-        NewHeight - ScrollTop - ScrollBottomPadding
-    )
+	ScrollingFrame.Position = UDim2.new(
+		ORIGINAL_SCROLL_POSITION.X.Scale,
+		ORIGINAL_SCROLL_POSITION.X.Offset,
+		ORIGINAL_SCROLL_POSITION.Y.Scale,
+		ScrollTop
+	)
 
-    ScrollingFrame.Position = UDim2.new(
-        ORIGINAL_SCROLL_POSITION.X.Scale,
-        ORIGINAL_SCROLL_POSITION.X.Offset,
-        ORIGINAL_SCROLL_POSITION.Y.Scale,
-        ScrollTop
-    )
+	ScrollingFrame.Size = UDim2.new(
+		ORIGINAL_SCROLL_SIZE.X.Scale,
+		ORIGINAL_SCROLL_SIZE.X.Offset,
+		0,
+		ScrollHeight
+	)
 
-    ScrollingFrame.Size = UDim2.new(
-        ORIGINAL_SCROLL_SIZE.X.Scale,
-        ORIGINAL_SCROLL_SIZE.X.Offset,
-        0,
-        ScrollHeight
-    )
+	ResizeHandle.Position = UDim2.new(
+		ORIGINAL_RESIZE_POSITION.X.Scale,
+		ORIGINAL_RESIZE_POSITION.X.Offset,
+		0,
+		NewHeight + 5
+	)
 
-    ResizeHandle.Position = UDim2.new(
-        ORIGINAL_RESIZE_POSITION.X.Scale,
-        ORIGINAL_RESIZE_POSITION.X.Offset,
-        0,
-        NewHeight + 5
-    )
+	AmountAsset.Position = UDim2.new(
+		ORIGINAL_AMOUNT_POSITION.X.Scale,
+		ORIGINAL_AMOUNT_POSITION.X.Offset,
+		1,
+		-13
+	)
 
-    AmountAsset.Position = UDim2.new(
-        ORIGINAL_AMOUNT_POSITION.X.Scale,
-        ORIGINAL_AMOUNT_POSITION.X.Offset,
-        1,
-        -13
-    )
+	InsertBox.Position = ORIGINAL_INSERT_POSITION
+	BackgroundInsert.Position = ORIGINAL_BACKGROUND_INSERT_POSITION
 
-    InsertBox.Position = ORIGINAL_INSERT_POSITION
-    BackgroundInsert.Position = ORIGINAL_BACKGROUND_INSERT_POSITION
+	SaveBox.Position = ORIGINAL_SAVE_POSITION
+	BackgroundSave.Position = ORIGINAL_BACKGROUND_SAVE_POSITION
 
-    SaveBox.Position = ORIGINAL_SAVE_POSITION
-    BackgroundSave.Position = ORIGINAL_BACKGROUND_SAVE_POSITION
+	SearchBox.Position = ORIGINAL_SEARCH_POSITION
+	BackgroundSearch.Position = ORIGINAL_BACKGROUND_SEARCH_POSITION
 
-    SearchBox.Position = ORIGINAL_SEARCH_POSITION
-    BackgroundSearch.Position = ORIGINAL_BACKGROUND_SEARCH_POSITION
+	CardSaved.Position = ORIGINAL_CARD_SAVED_POSITION
+	CardMenu.Position = ORIGINAL_CARD_MENU_POSITION
+end
 
-    CardSaved.Position = ORIGINAL_CARD_SAVED_POSITION
-    CardMenu.Position = ORIGINAL_CARD_MENU_POSITION
+local function OpenPanel()
+	if IsDestroyed then return end
+	IsOpen = true
+	UpdateOpenButtonIcon()
+
+	TweenService:Create(Panel, TWEEN_OPEN_CLOSE, {
+		Position = OPEN_POSITION
+	}):Play()
+end
+
+local function HidePanel()
+	if IsDestroyed then return end
+	IsOpen = false
+	UpdateOpenButtonIcon()
+
+	TweenService:Create(Panel, TWEEN_OPEN_CLOSE, {
+		Position = CLOSE_POSITION
+	}):Play()
 end
 
 -- =========================================================
--- PANEL INITIALIZATION
+-- INITIALIZATION
 -- =========================================================
 
 Panel.AnchorPoint = Vector2.new(0, 0)
@@ -1297,204 +1287,92 @@ Panel.Position = CLOSE_POSITION
 Panel.Visible = true
 
 UpdatePanelLayout(ORIGINAL_HEIGHT)
-
--- =========================================================
--- PANEL OPEN / CLOSE
--- =========================================================
-
-local function OpenPanel()
-    if IsDestroyed then
-        return
-    end
-
-    IsOpen = true
-    UpdateOpenButtonIcon()
-
-    TweenService:Create(
-        Panel,
-        TweenOpenClose,
-        {
-            Position = OPEN_POSITION
-        }
-    ):Play()
-end
-
-local function HidePanel()
-    if IsDestroyed then
-        return
-    end
-
-    IsOpen = false
-    UpdateOpenButtonIcon()
-
-    TweenService:Create(
-        Panel,
-        TweenOpenClose,
-        {
-            Position = CLOSE_POSITION
-        }
-    ):Play()
-end
-
--- =========================================================
--- INITIAL OPEN
--- =========================================================
-
 UpdateOpenButtonIcon()
 
-TweenService:Create(
-    Panel,
-    TweenOpenClose,
-    {
-        Position = OPEN_POSITION
-    }
-):Play()
+TweenService:Create(Panel, TWEEN_OPEN_CLOSE, {
+	Position = OPEN_POSITION
+}):Play()
 
 -- =========================================================
--- OPEN BUTTON
+-- EVENT CONNECTIONS
 -- =========================================================
 
 OpenButton.MouseButton1Click:Connect(function()
-    if IsDestroyed then
-        return
-    end
-
-    if IsOpen then
-        HidePanel()
-    else
-        OpenPanel()
-    end
+	if IsDestroyed then return end
+	if IsOpen then
+		HidePanel()
+	else
+		OpenPanel()
+	end
 end)
-
--- =========================================================
--- CLOSE BUTTON
--- =========================================================
 
 CloseButton.MouseButton1Click:Connect(function()
-    if IsDestroyed then
-        return
-    end
+	if IsDestroyed then return end
+	IsDestroyed = true
 
-    IsDestroyed = true
+	local DestroyTween = TweenService:Create(Panel, TWEEN_DESTROY, {
+		Size = UDim2.new(0, 0, 0, 0),
+		Position = ORIGINAL_PANEL_POSITION
+	})
 
-    local DestroyTween = TweenService:Create(
-        Panel,
-        TweenDestroy,
-        {
-            Size = UDim2.new(0, 0, 0, 0),
-            Position = ORIGINAL_PANEL_POSITION
-        }
-    )
+	DestroyTween:Play()
+	DestroyTween.Completed:Wait()
 
-    DestroyTween:Play()
-    DestroyTween.Completed:Wait()
-
-    if NarakuPlugin then
-        NarakuPlugin:Destroy()
-    end
+	if NarakuPlugin then
+		NarakuPlugin:Destroy()
+	end
 end)
 
--- =========================================================
--- RESIZE SYSTEM
--- =========================================================
-
 ResizeHandle.InputBegan:Connect(function(Input)
-    if IsDestroyed then
-        return
-    end
-
-    if Input.UserInputType == Enum.UserInputType.MouseButton1
-    or Input.UserInputType == Enum.UserInputType.Touch then
-
-        IsResizing = true
-        StartMouseY = Input.Position.Y
-        StartHeight = Panel.Size.Y.Offset
-    end
+	if IsDestroyed then return end
+	if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+		IsResizing = true
+		StartMouseY = Input.Position.Y
+		StartHeight = Panel.Size.Y.Offset
+	end
 end)
 
 UserInputService.InputEnded:Connect(function(Input)
-    if Input.UserInputType == Enum.UserInputType.MouseButton1
-    or Input.UserInputType == Enum.UserInputType.Touch then
-
-        IsResizing = false
-    end
+	if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+		IsResizing = false
+	end
 end)
 
 UserInputService.InputChanged:Connect(function(Input)
-    if IsDestroyed or not IsResizing then
-        return
-    end
+	if IsDestroyed or not IsResizing then return end
+	if Input.UserInputType ~= Enum.UserInputType.MouseMovement and Input.UserInputType ~= Enum.UserInputType.Touch then
+		return
+	end
 
-    if Input.UserInputType ~= Enum.UserInputType.MouseMovement
-    and Input.UserInputType ~= Enum.UserInputType.Touch then
-        return
-    end
-
-    local DeltaY = Input.Position.Y - StartMouseY
-
-    UpdatePanelLayout(
-        StartHeight + DeltaY
-    )
+	local DeltaY = Input.Position.Y - StartMouseY
+	UpdatePanelLayout(StartHeight + DeltaY)
 end)
 
--- =========================================================
--- ASSET SCROLL CANVAS
--- =========================================================
-
-local AssetLayout =
-    ScrollingFrame:FindFirstChildOfClass("UIListLayout")
-
+-- Dynamic Canvas Updates
+local AssetLayout = ScrollingFrame:FindFirstChildOfClass("UIListLayout")
 if AssetLayout then
-    local function UpdateAssetCanvas()
-        if IsDestroyed then
-            return
-        end
+	local function UpdateAssetCanvas()
+		if IsDestroyed then return end
+		ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, AssetLayout.AbsoluteContentSize.Y + 12)
+	end
 
-        ScrollingFrame.CanvasSize = UDim2.new(
-            0,
-            0,
-            0,
-            AssetLayout.AbsoluteContentSize.Y + 12
-        )
-    end
-
-    UpdateAssetCanvas()
-
-    AssetLayout:GetPropertyChangedSignal(
-        "AbsoluteContentSize"
-    ):Connect(UpdateAssetCanvas)
+	UpdateAssetCanvas()
+	AssetLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateAssetCanvas)
 end
 
--- =========================================================
--- TAB SCROLL CANVAS
--- =========================================================
-
-local TabLayout =
-    ScrollingTab:FindFirstChildOfClass("UIListLayout")
-
+local TabLayout = ScrollingTab:FindFirstChildOfClass("UIListLayout")
 if TabLayout then
-    local function UpdateTabCanvas()
-        if IsDestroyed then
-            return
-        end
+	local function UpdateTabCanvas()
+		if IsDestroyed then return end
+		ScrollingTab.CanvasSize = UDim2.new(0, TabLayout.AbsoluteContentSize.X + 12, 0, 0)
+	end
 
-        ScrollingTab.CanvasSize = UDim2.new(
-            0,
-            TabLayout.AbsoluteContentSize.X + 12,
-            0,
-            0
-        )
-    end
-
-    UpdateTabCanvas()
-
-    TabLayout:GetPropertyChangedSignal(
-        "AbsoluteContentSize"
-    ):Connect(UpdateTabCanvas)
+	UpdateTabCanvas()
+	TabLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateTabCanvas)
 end
 
 -- =========================================================
--- FINALIZE
+-- FINALIZE SETUP
 -- =========================================================
 
 UpdatePanelLayout(ORIGINAL_HEIGHT)
