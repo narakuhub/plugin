@@ -1575,17 +1575,28 @@ TemplateFrame.Visible = false
 TemplateFrame.Parent = nil
 
 -------------------------------------------------------------------------
--- DATA CONFIGURATION & LOCAL STORAGE SYSTEM
+-- DATA CONFIGURATION & DUAL STORAGE SYSTEM
 -------------------------------------------------------------------------
+local ASSETS_URL = "https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/Assets.json"
+
 local CurrentCategory = "Model" 
 local CurrentSessionId = 0
-local CurrentTabMode = "Search" -- Mode aktif: "Search" atau "Saved"
+local CurrentTabMode = "Search" -- "Search" (dari Assets.json) atau "Saved" (dari toolbox_assets.json)
 
+-- Katalog/Master Database Asset (Diunduh dari GitHub)
+local MasterAssets = {
+    Model = {},
+    Decal = {},
+    Audio = {},
+    Plugin = {}
+}
+
+-- Database Asset yang Disimpan User (Lokal via Executor File System)
 local SavedAssets = {
     Model = {89464989224212, 16063473188},
     Decal = {4846381420},
     Audio = {118149279616179, 124112959171614},
-    Plugin = {} -- Mendukung kategori Plugin di UI baru
+    Plugin = {}
 }
 
 -- Definisi Warna UI dari Elemen Hardcode
@@ -1597,8 +1608,11 @@ local COLOR_TEXT_DESELECTED = Color3.fromRGB(150, 150, 150)
 -- Helper pengecekan folder executor
 local isfolder = isfolder or function(path) return false end
 
--- Memuat data tersimpan dari file sistem executor
-local function LoadData()
+-------------------------------------------------------------------------
+-- LOCAL STORAGE: TOOLBOX_ASSETS.JSON (USER SAVED ASSETS)
+-------------------------------------------------------------------------
+-- Memuat data tersimpan milik user dari file lokal
+local function LoadSavedAssets()
     if makefolder and isfile and readfile then
         pcall(function()
             if not isfolder("delta") then 
@@ -1608,7 +1622,6 @@ local function LoadData()
                 local data = readfile("delta/toolbox_assets.json")
                 local decoded = HttpService:JSONDecode(data)
                 if type(decoded) == "table" then 
-                    -- Pastikan semua key kategori utama ada
                     SavedAssets.Model = decoded.Model or SavedAssets.Model
                     SavedAssets.Decal = decoded.Decal or SavedAssets.Decal
                     SavedAssets.Audio = decoded.Audio or SavedAssets.Audio
@@ -1619,8 +1632,8 @@ local function LoadData()
     end
 end
 
--- Menyimpan data ke file sistem executor
-local function SaveData()
+-- Menyimpan data tersimpan milik user ke file lokal
+local function SaveSavedAssets()
     if writefile then
         pcall(function()
             if not isfolder("delta") then 
@@ -1631,8 +1644,77 @@ local function SaveData()
     end
 end
 
--- Panggil LoadData saat script dijalankan
-LoadData()
+-------------------------------------------------------------------------
+-- MASTER DATABASE: ASSETS.JSON (KATALOG UTAMA ONLINE)
+-------------------------------------------------------------------------
+-- Mengunduh Master Database dari URL GitHub
+local function FetchMasterAssets()
+    task.spawn(function()
+        local success, result = pcall(function()
+            return game:HttpGet(ASSETS_URL)
+        end)
+        
+        if success and result then
+            local decodedSuccess, decoded = pcall(function()
+                return HttpService:JSONDecode(result)
+            end)
+            
+            if decodedSuccess and type(decoded) == "table" then
+                -- Menggabungkan data dari remote Assets.json ke MasterAssets
+                MasterAssets.Model = decoded.Model or MasterAssets.Model
+                MasterAssets.Decal = decoded.Decal or MasterAssets.Decal
+                MasterAssets.Audio = decoded.Audio or MasterAssets.Audio
+                MasterAssets.Plugin = decoded.Plugin or MasterAssets.Plugin
+            end
+        end
+    end)
+end
+
+-------------------------------------------------------------------------
+-- HELPER UTILITY FOR ASSET ID MATCHING & MANAGEMENT
+-------------------------------------------------------------------------
+-- Memeriksa apakah suatu Asset ID ada di daftar simpanan user (toolbox_assets.json)
+local function IsAssetSaved(category, assetId)
+    local numericId = tonumber(assetId)
+    if not numericId or not SavedAssets[category] then return false end
+    
+    for _, id in ipairs(SavedAssets[category]) do
+        if tonumber(id) == numericId then
+            return true
+        end
+    end
+    return false
+end
+
+-- Menambahkan Asset ID ke toolbox_assets.json (Save)
+local function AddSavedAsset(category, assetId)
+    local numericId = tonumber(assetId)
+    if not numericId then return end
+    if not SavedAssets[category] then SavedAssets[category] = {} end
+    
+    if not IsAssetSaved(category, numericId) then
+        table.insert(SavedAssets[category], numericId)
+        SaveSavedAssets()
+    end
+end
+
+-- Menghapus Asset ID dari toolbox_assets.json saja (Unsave - tanpa menyentuh MasterAssets)
+local function RemoveSavedAsset(category, assetId)
+    local numericId = tonumber(assetId)
+    if not numericId or not SavedAssets[category] then return end
+    
+    for index, id in ipairs(SavedAssets[category]) do
+        if tonumber(id) == numericId then
+            table.remove(SavedAssets[category], index)
+            SaveSavedAssets()
+            break
+        end
+    end
+end
+
+-- Panggil Inisialisasi Data awal
+LoadSavedAssets()
+FetchMasterAssets()
 
 -------------------------------------------------------------------------
 -- MANAGEMENT RENDER CONTAINER & CLEAR LIST
@@ -1640,12 +1722,10 @@ LoadData()
 -- Membersihkan isi list rendering lama di ScrollingFrame_5a
 local function ClearList()
     for _, item in ipairs(ScrollingFrame:GetChildren()) do
-        -- Menghapus item Card/Frame hasil kloning, dan tidak menyentuh UI Component (UIListLayout, UIPadding, dsb)
         if item:IsA("Frame") and item ~= TemplateFrame then
             item:Destroy()
         end
     end
-    -- Reset indikator jumlah asset
     if AmountAsset then
         AmountAsset.Text = "0 Assets"
     end
