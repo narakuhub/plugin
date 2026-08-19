@@ -1436,15 +1436,21 @@ TemplateFrame.Visible = false
 TemplateFrame.Parent = nil
 
 -------------------------------------------------------------------------
--- DATA CONFIGURATION & LOCAL STORAGE SYSTEM
+-- DATA CONFIGURATION & LOCAL STORAGE SYSTEM (FIXED DUAL MODE)
 -------------------------------------------------------------------------
 local CurrentCategory = "Model" 
 local CurrentSessionId = 0
-local IsShowingSavedOnly = false -- Status filter SavedButton
+local IsShowingSavedOnly = false -- Status Toggle Filter (False = MasterAssets, True = SavedAssets)
 
 -- Dual Database System
-local MasterAssets = {} -- Data dari Assets.json (Katalog Utama)
-local SavedAssets = {   -- Data dari toolbox_assets.json (Asset Tersimpan User)
+local MasterAssets = {   -- Katalog Utama dari Remote Assets.json
+    Model = {},
+    Decal = {},
+    Audio = {},
+    Plugin = {}
+}
+
+local SavedAssets = {    -- Database Lokal User dari delta/toolbox_assets.json
     Model = {89464989224212, 16063473188},
     Decal = {4846381420},
     Audio = {118149279616179, 124112959171614},
@@ -1456,7 +1462,7 @@ local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36)
 
 local HttpService = game:GetService("HttpService")
 
--- Memuat Master Database (Assets.json) dari URL Remote
+-- 1. Memuat Master Database dari URL Remote Assets.json
 local function FetchMasterAssets()
     pcall(function()
         local url = "https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/Assets.json"
@@ -1465,12 +1471,17 @@ local function FetchMasterAssets()
             local decoded = HttpService:JSONDecode(response)
             if decoded then
                 MasterAssets = decoded
+                -- Pastikan seluruh kunci kategori memiliki struktur tabel
+                MasterAssets.Model = MasterAssets.Model or {}
+                MasterAssets.Decal = MasterAssets.Decal or {}
+                MasterAssets.Audio = MasterAssets.Audio or {}
+                MasterAssets.Plugin = MasterAssets.Plugin or {}
             end
         end
     end)
 end
 
--- Memuat Data User (toolbox_assets.json) dari Executor Storage
+-- 2. Memuat Data User dari Executor Storage (toolbox_assets.json)
 local function LoadUserData()
     if makefolder and isfile and readfile then
         pcall(function()
@@ -1480,15 +1491,18 @@ local function LoadUserData()
                 local decoded = HttpService:JSONDecode(data)
                 if decoded then 
                     SavedAssets = decoded 
-                    -- Pastikan kategori Plugin terinisialisasi
-                    if not SavedAssets.Plugin then SavedAssets.Plugin = {} end
+                    -- Pastikan kelengkapan struktur tabel kategori
+                    SavedAssets.Model = SavedAssets.Model or {}
+                    SavedAssets.Decal = SavedAssets.Decal or {}
+                    SavedAssets.Audio = SavedAssets.Audio or {}
+                    SavedAssets.Plugin = SavedAssets.Plugin or {}
                 end
             end
         end)
     end
 end
 
--- Menyimpan Data User ke Executor Storage
+-- 3. Menyimpan Data User ke Executor Storage
 local function SaveUserData()
     if writefile then
         pcall(function()
@@ -1498,7 +1512,7 @@ local function SaveUserData()
     end
 end
 
--- Fungsi Helper Check Status Saved berdasarkan Asset ID
+-- 4. Helper Checking Status IconSaved berdasarkan isi toolbox_assets.json
 local function IsAssetSaved(category, assetId)
     local numericId = tonumber(assetId)
     if not SavedAssets[category] then return false end
@@ -1514,7 +1528,7 @@ end
 FetchMasterAssets()
 LoadUserData()
 
--- Membersihkan isi list rendering lama (Menggunakan ScrollingFrame_5a)
+-- Membersihkan isi list rendering lama (ScrollingFrame_5a)
 local function ClearList()
     for _, item in ipairs(ScrollingFrame:GetChildren()) do
         if item:IsA("Frame") and item ~= TemplateFrame then
