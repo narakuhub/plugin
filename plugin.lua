@@ -1575,7 +1575,7 @@ TemplateFrame.Visible = false
 TemplateFrame.Parent = nil
 
 -------------------------------------------------------------------------
--- DATA CONFIGURATION & DUAL STORAGE SYSTEM
+-- DATA CONFIGURATION & DUAL STORAGE SYSTEM (FIXED LOGIC)
 -------------------------------------------------------------------------
 local ASSETS_URL = "https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/Assets.json"
 
@@ -1648,7 +1648,7 @@ end
 -- MASTER DATABASE: ASSETS.JSON (KATALOG UTAMA ONLINE)
 -------------------------------------------------------------------------
 -- Mengunduh Master Database dari URL GitHub
-local function FetchMasterAssets()
+local function FetchMasterAssets(onComplete)
     task.spawn(function()
         local success, result = pcall(function()
             return game:HttpGet(ASSETS_URL)
@@ -1666,6 +1666,10 @@ local function FetchMasterAssets()
                 MasterAssets.Audio = decoded.Audio or MasterAssets.Audio
                 MasterAssets.Plugin = decoded.Plugin or MasterAssets.Plugin
             end
+        end
+
+        if onComplete then
+            onComplete()
         end
     end)
 end
@@ -1698,7 +1702,7 @@ local function AddSavedAsset(category, assetId)
     end
 end
 
--- Menghapus Asset ID dari toolbox_assets.json saja (Unsave - tanpa menyentuh MasterAssets)
+-- Menghapus Asset ID dari toolbox_assets.json saja (Unsave)
 local function RemoveSavedAsset(category, assetId)
     local numericId = tonumber(assetId)
     if not numericId or not SavedAssets[category] then return end
@@ -1712,15 +1716,12 @@ local function RemoveSavedAsset(category, assetId)
     end
 end
 
--- Panggil Inisialisasi Data awal
-LoadSavedAssets()
-FetchMasterAssets()
-
 -------------------------------------------------------------------------
 -- MANAGEMENT RENDER CONTAINER & CLEAR LIST
 -------------------------------------------------------------------------
--- Membersihkan isi list rendering lama di ScrollingFrame_5a
+-- Membersihkan isi list rendering lama di ScrollingFrame
 local function ClearList()
+    if not ScrollingFrame then return end
     for _, item in ipairs(ScrollingFrame:GetChildren()) do
         if item:IsA("Frame") and item ~= TemplateFrame then
             item:Destroy()
@@ -1749,6 +1750,86 @@ local function GetCategoryFromAssetType(assetTypeId)
         return "Model"
     end
 end
+
+-------------------------------------------------------------------------
+-- FIX LOGIC: TOGGLE MODE SEARCH (URL) VS SAVED (LOCAL FILE)
+-------------------------------------------------------------------------
+local function ToggleSavedMode()
+    if CurrentTabMode == "Search" then
+        -- Pindah ke mode melihat file lokal toolbox_assets.json
+        CurrentTabMode = "Saved"
+        if CardSaved then 
+            CardSaved.BackgroundColor3 = COLOR_ACTIVE 
+        end
+    else
+        -- Kembali ke mode katalog utama online dari URL Assets.json
+        CurrentTabMode = "Search"
+        if CardSaved then 
+            CardSaved.BackgroundColor3 = COLOR_INACTIVE 
+        end
+    end
+    
+    -- Re-render ulang isi ScrollingFrame sesuai mode baru
+    if RenderAssets then
+        RenderAssets(SearchBox and SearchBox.Text or "")
+    end
+end
+
+-- Menghubungkan Event Click pada CardSaved / SavedButton_2c
+if SavedButton then
+    SavedButton.MouseButton1Click:Connect(function()
+        ToggleSavedMode()
+    end)
+elseif CardSaved then
+    CardSaved.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            ToggleSavedMode()
+        end
+    end)
+end
+
+-------------------------------------------------------------------------
+-- LOGIK VISUALIZATION ICONSAVED_62 FILTERING
+-------------------------------------------------------------------------
+-- Panggil fungsi ini di dalam loop RenderAssets saat membuat Card Frame
+local function ApplySavedIconFilter(cardFrame, assetId, category)
+    local iconSaved = cardFrame:FindFirstChild("IconSaved_62") or cardFrame:FindFirstChild("IconSaved")
+    if not iconSaved then return end
+
+    if CurrentTabMode == "Saved" then
+        -- Jika yang diload adalah file toolbox_assets.json -> Aktifkan/Tampilkan Icon
+        iconSaved.Visible = true
+        if iconSaved:IsA("ImageLabel") then
+            iconSaved.ImageColor3 = COLOR_ACTIVE
+            iconSaved.ImageTransparency = 0
+        end
+    else
+        -- Jika yang diload adalah URL Assets.json -> Sembunyikan / Padamkan Icon
+        if IsAssetSaved(category, assetId) then
+            -- Opsional: Jika di URL tapi ada di saved list user
+            iconSaved.Visible = true
+            if iconSaved:IsA("ImageLabel") then
+                iconSaved.ImageColor3 = COLOR_ACTIVE
+                iconSaved.ImageTransparency = 0
+            end
+        else
+            iconSaved.Visible = false
+        end
+    end
+end
+
+-------------------------------------------------------------------------
+-- INITIALIZATION RUN
+-------------------------------------------------------------------------
+LoadSavedAssets()
+FetchMasterAssets(function()
+    -- Begitu data dari URL GitHub selesai diunduh, langsung render tampilan utama
+    if SwitchTab then
+        SwitchTab("Model")
+    elseif RenderAssets then
+        RenderAssets("")
+    end
+end)
 
 -------------------------------------------------------------------------
 -- FUNGSI INSERT UTAMA (SISTEM FALLBACK INTELIJEN UNTUK WORKSPACE RESMI)
