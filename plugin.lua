@@ -1501,7 +1501,7 @@ UpdatePanelLayout(ORIGINAL_HEIGHT)
 UpdateOpenButtonIcon()
 
 -------------------------------------------------------------------------
--- SERVICES & STUDIO LITE BINDINGS
+-- TAHAP 1: SERVICES & STUDIO LITE BINDINGS
 -------------------------------------------------------------------------
 local TweenService = game:GetService("TweenService")	
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -1519,7 +1519,7 @@ local ExplorerPanel = StudioGui and StudioGui:WaitForChild("ExplorerPanel", 3)
 local GetSelection = ExplorerPanel and ExplorerPanel:WaitForChild("GetSelection", 3)
 local SetSelection = ExplorerPanel and ExplorerPanel:WaitForChild("SetSelection", 3)
 
--- Safety bindings untuk File I/O
+-- Safety File I/O Bindings (mencegah nil value pada executor)
 local writefile = writefile or (io and io.writefile)
 local readfile = readfile or (io and io.readfile)
 local isfile = isfile or (io and io.isfile)
@@ -1528,9 +1528,9 @@ local makefolder = makefolder or (io and io.makefolder)
 local setclipboard = setclipboard or toclipboard or print
 
 -------------------------------------------------------------------------
--- PEMANGGILAN OBJEK UI (SINKRONISASI STRUKTUR LMG2L BARU)
+-- TAHAP 2: UI MAPPING (REFERENSI HIRARKI LMG2L BARU)
 -------------------------------------------------------------------------
--- Pastikan pemanggilan tabel LMG2L aman dari nil value
+-- Memastikan tabel LMG2L ada sebelum di-index
 local Gui = LMG2L and LMG2L["ScreenGui_1"]
 local MainPanel = LMG2L and LMG2L["Panel_3"]
 
@@ -1543,7 +1543,7 @@ local DecalButton = LMG2L and LMG2L["DecalButton_21"]
 -- Toggle Filter Saved Assets Button
 local CardSaved = LMG2L and LMG2L["CardSaved_2a"]
 local SavedButton = LMG2L and LMG2L["SavedButton_2c"]
-local SavedIconIndicator = LMG2L and LMG2L["IconSaved_2e"]
+local SavedIconIndicator = LMG2L["IconSaved_2e"]
 
 -- Bagian Atas Panel (Fungsi INSERT ID ke Workspace)
 local InsertIDBox = LMG2L and LMG2L["InsertBox_38"]
@@ -1561,21 +1561,25 @@ local SaveIDButton = LMG2L and LMG2L["SaveButton_56"]
 local ScrollingFrame = LMG2L and LMG2L["ScrollingFrame_5a"]
 local TemplateFrame = LMG2L and LMG2L["Card_5d"]
 
--- Membersihkan Template Master dengan pemeriksaan kondisi aman (Pencegah Crash)
+-- Safe Isolation Template Card (mencegah attempt to index nil)
 if TemplateFrame then
     TemplateFrame.Visible = false
     TemplateFrame.Parent = nil
 end
 
 -------------------------------------------------------------------------
--- DATA CONFIGURATION & LOCAL STORAGE SYSTEM (SINGLE FETCH & SAVED FILTER)
+-- TAHAP 3: DATA CONFIGURATION & LOCAL STORAGE SYSTEM (DUAL DATABASE)
 -------------------------------------------------------------------------
 local CurrentCategory = "Model" 
 local CurrentSessionId = 0
 local IsShowingSavedOnly = false -- Status Toggle Filter (False = MasterAssets, True = SavedAssets)
 
+-- Skema Warna Visual UI Baru
+local COLOR_ACTIVE = Color3.fromRGB(223, 230, 237)    -- Active State
+local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36)      -- Normal/Inactive State
+
 -- Dual Database System
-local MasterAssets = {   -- Katalog Utama dari Remote Assets.json
+local MasterAssets = {    -- Katalog Utama dari Remote Assets.json
     Model = {},
     Decal = {},
     Audio = {},
@@ -1589,46 +1593,50 @@ local SavedAssets = {    -- Database Lokal User dari delta/toolbox_assets.json
     Plugin = {}
 }
 
--- Skema Warna Visual Sesuai Spesifikasi Struktur UI Baru
-local COLOR_ACTIVE = Color3.fromRGB(223, 230, 237)    -- Active Background State
-local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36)      -- Normal/Inactive State
-
-local HttpService = game:GetService("HttpService")
-
 -- 1. Memuat Master Database (HANYA 1 KALI FETCH/LOAD REMOTE)
 local function FetchMasterAssets()
-    pcall(function()
-        local url = "https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/Assets.json"
-        local response = game:HttpGet(url)
-        if response then
-            local decoded = HttpService:JSONDecode(response)
-            if decoded then
-                MasterAssets = decoded
-                -- Menjamin struktur data tabel lengkap
-                MasterAssets.Model = MasterAssets.Model or {}
-                MasterAssets.Decal = MasterAssets.Decal or {}
-                MasterAssets.Audio = MasterAssets.Audio or {}
-                MasterAssets.Plugin = MasterAssets.Plugin or {}
-            end
-        end
+    local success, response = pcall(function()
+        return game:HttpGet("https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/Assets.json")
     end)
+    
+    if success and response and #response > 0 then
+        local decodeSuccess, decoded = pcall(function()
+            return HttpService:JSONDecode(response)
+        end)
+        
+        if decodeSuccess and type(decoded) == "table" then
+            MasterAssets = decoded
+            -- Menjamin ketersediaan struktur tabel
+            MasterAssets.Model = MasterAssets.Model or {}
+            MasterAssets.Decal = MasterAssets.Decal or {}
+            MasterAssets.Audio = MasterAssets.Audio or {}
+            MasterAssets.Plugin = MasterAssets.Plugin or {}
+        end
+    end
 end
 
 -- 2. Memuat Data User khusus dari Executor Storage (delta/toolbox_assets.json)
 local function LoadUserData()
     if makefolder and isfile and readfile then
         pcall(function()
-            if not isfolder("delta") then makefolder("delta") end
+            if isfolder and not isfolder("delta") then 
+                makefolder("delta") 
+            end
+            
             if isfile("delta/toolbox_assets.json") then
                 local data = readfile("delta/toolbox_assets.json")
-                local decoded = HttpService:JSONDecode(data)
-                if decoded then 
-                    SavedAssets = decoded 
-                    -- Menjamin ketersediaan kategori
-                    SavedAssets.Model = SavedAssets.Model or {}
-                    SavedAssets.Decal = SavedAssets.Decal or {}
-                    SavedAssets.Audio = SavedAssets.Audio or {}
-                    SavedAssets.Plugin = SavedAssets.Plugin or {}
+                if data and #data > 0 then
+                    local decodeSuccess, decoded = pcall(function()
+                        return HttpService:JSONDecode(data)
+                    end)
+                    
+                    if decodeSuccess and type(decoded) == "table" then 
+                        SavedAssets = decoded 
+                        SavedAssets.Model = SavedAssets.Model or {}
+                        SavedAssets.Decal = SavedAssets.Decal or {}
+                        SavedAssets.Audio = SavedAssets.Audio or {}
+                        SavedAssets.Plugin = SavedAssets.Plugin or {}
+                    end
                 end
             end
         end)
@@ -1639,13 +1647,16 @@ end
 local function SaveUserData()
     if writefile then
         pcall(function()
-            if not isfolder("delta") then makefolder("delta") end
-            writefile("delta/toolbox_assets.json", HttpService:JSONEncode(SavedAssets))
+            if isfolder and not isfolder("delta") then 
+                makefolder("delta") 
+            end
+            local encodedData = HttpService:JSONEncode(SavedAssets)
+            writefile("delta/toolbox_assets.json", encodedData)
         end)
     end
 end
 
--- 4. Helper Checking Khusus: Deteksi Status IconSaved Hanya Jika Terdaftar di toolbox_assets.json
+-- 4. Helper Checking: Status IconSaved Hanya Jika Terdaftar di toolbox_assets.json
 local function IsAssetSaved(category, assetId)
     local numericId = tonumber(assetId)
     if not category or not SavedAssets[category] then return false end
@@ -1662,8 +1673,13 @@ end
 FetchMasterAssets()
 LoadUserData()
 
--- Membersihkan isi list rendering lama di ScrollingFrame_5a
+-------------------------------------------------------------------------
+-- TAHAP 4: CLEAR LIST & CATEGORY SYSTEM
+-------------------------------------------------------------------------
+-- Membersihkan isi list rendering lama di ScrollingFrame
 local function ClearList()
+    if not ScrollingFrame then return end
+    
     for _, item in ipairs(ScrollingFrame:GetChildren()) do
         if item:IsA("Frame") and item ~= TemplateFrame then
             item:Destroy()
@@ -1671,9 +1687,7 @@ local function ClearList()
     end
 end
 
--------------------------------------------------------------------------
--- LOGIKA DETEKSI KATEGORI OTOMATIS BERDASARKAN ROBLOX MARKETPLACE ID
--------------------------------------------------------------------------
+-- Deteksi Kategori Otomatis Berdasarkan Roblox AssetTypeId
 local function GetCategoryFromAssetType(assetTypeId)
     if assetTypeId == 13 or assetTypeId == 1 or assetTypeId == 2 or assetTypeId == 14 then
         return "Decal"
