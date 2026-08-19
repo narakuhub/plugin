@@ -1681,6 +1681,456 @@ local function GetCategoryFromAssetType(assetTypeId)
     end
 end
 
+-------------------------------------------------------------------------
+-- FUNGSI INSERT UTAMA (SISTEM FALLBACK INTELIJEN UNTUK WORKSPACE RESMI)
+-------------------------------------------------------------------------
+local function InsertAsset(assetId, category, statusTarget)
+    if statusTarget then
+        statusTarget.Text = "Working"
+    end
+    local stringId = tostring(assetId)
 
+    local successInfo, info = pcall(function() return MarketplaceService:GetProductInfo(assetId) end)
+    if successInfo and info then
+        category = GetCategoryFromAssetType(info.AssetTypeId)
+    else
+        if not category then category = "Model" end
+    end
+
+    -- Handler kalkulasi posisi Kamera Workspace jika dieksekusi di luar Studio Lite
+    local function SafeStudioFallback(obj)
+        if not obj then return end
+        local targetModel, isTemporary, tempContainer
+        if obj.ClassName == "Model" then
+            targetModel = obj
+            isTemporary = false
+        else
+            targetModel = Instance.new("Model")
+            obj.Parent = targetModel
+            tempContainer = targetModel
+            isTemporary = true
+        end
+
+        local currentCFrame, boundingSize = targetModel:GetBoundingBox()
+        local lowestYOffset = not targetModel.PrimaryPart and 0 or targetModel.PrimaryPart.Position.Y - boundingSize.Y / 2
+        local camCFrame = workspace.Camera.CFrame
+        local posX = math.floor((camCFrame.X + camCFrame.LookVector.X * 30) * 2) / 2
+        local posY = boundingSize.Y / 2 + lowestYOffset
+        local posZ = math.floor((camCFrame.Z + camCFrame.LookVector.Z * 30) * 2) / 2
+        
+        local calculatedPos = Vector3.new(posX, posY, posZ)
+        local raycastOrigin = Vector3.new(calculatedPos.X, camCFrame.Y, calculatedPos.Z)
+        local raycastResult = workspace:Raycast(raycastOrigin, Vector3.new(0, -camCFrame.Y, 0))
+        
+        if raycastResult then
+            local newY = raycastResult.Instance.Position.Y + raycastResult.Instance.Size.Y / 2 + boundingSize.Y / 2 + lowestYOffset
+            calculatedPos = Vector3.new(calculatedPos.X, newY, calculatedPos.Z)
+        end
+
+        targetModel:PivotTo(CFrame.new(calculatedPos) * currentCFrame.Rotation)
+
+        if isTemporary then
+            local finalObj = targetModel:GetChildren()[1]:Clone()
+            finalObj.Parent = workspace
+            if tempContainer then tempContainer:Destroy() end
+        else
+            targetModel.Parent = workspace
+            targetModel:MakeJoints()
+        end
+    end
+
+    -- JIKA ASSET ADALAH AUDIO
+    if category == "Audio" then
+        local sound = Instance.new("Sound")
+        sound.Name = (successInfo and info and info.Name) or "SoundAsset_" .. stringId
+        sound.SoundId = "rbxassetid://" .. stringId
+        sound.Volume = 0.5
+        sound.Parent = workspace
+        if statusTarget then statusTarget.Text = "Berhasil!" end
+        return
+    end
+
+    -- JIKA ASSET ADALAH DECAL
+    if category == "Decal" then
+        if GetSelection and SetSelection then
+            local currentSelection = nil
+            pcall(function() currentSelection = GetSelection:Invoke() end)
+            
+            if currentSelection and typeof(currentSelection) == "table" and #currentSelection >= 1 and currentSelection[1]:IsA("BasePart") then
+                local decal = Instance.new("Decal")
+                decal.Name = (successInfo and info and info.Name) or "Decal"
+                decal.Texture = "rbxthumb://type=Asset&id=" .. stringId .. "&w=420&h=420"
+                decal.Parent = currentSelection[1]
+                
+                task.wait(0.2)
+                pcall(function() SetSelection:Invoke({ decal }) end)
+                if statusTarget then statusTarget.Text = "Berhasil!" end
+            else
+                if statusTarget then statusTarget.Text = "Select Part!" end
+            end
+        else
+            local decal = Instance.new("Decal")
+            decal.Name = (successInfo and info and info.Name) or "DecalAsset_" .. stringId
+            decal.Texture = "rbxassetid://" .. stringId
+            decal.Parent = workspace
+            if statusTarget then statusTarget.Text = "Berhasil!" end
+        end
+        return
+    end
+
+    -- JIKA ASSET ADALAH MODEL ATAU PLUGIN
+    if LoadAssetRemote and LoadAssetRemote:IsA("RemoteFunction") then
+        local loadSuccess = false
+        pcall(function()
+            loadSuccess = LoadAssetRemote:InvokeServer(stringId)
+        end)
+
+        if loadSuccess then
+            local serverFolder = PlayerGui:WaitForChild(stringId, 5)
+            if serverFolder then
+                local assetClone = serverFolder:Clone()
+                local children = assetClone:GetChildren()
+                if #children == 0 then
+                    local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+                    if clientSuccess and clientObj then
+                        SafeStudioFallback(clientObj)
+                    else
+                        assetClone.Parent = workspace
+                    end
+                else
+                    for _, obj in pairs(children) do
+                        if obj.ClassName == "Folder" and ("Workspace Lighting MaterialService ReplicatedStorage ServerStorage ServerScriptService StarterGui StarterPack Teams SoundService StarterPlayer InsertService TextChatService"):find(obj.Name, 1, true) then
+                            if obj.Name == "ServerStorage" then
+                                for _, item in pairs(obj:GetChildren()) do item.Parent = _G.ss or game:GetService("ServerStorage") end
+                            elseif obj.Name == "ServerScriptService" then
+                                for _, item in pairs(obj:GetChildren()) do item.Parent = _G.sss or game:GetService("ServerScriptService") end
+                            elseif obj.Name == "StarterPlayer" then
+                                for _, inner in pairs(obj:GetChildren()) do
+                                    if inner.Name == "StarterPlayerScripts" or inner.Name == "StarterCharacterScripts" then
+                                        for _, scr in pairs(inner:GetChildren()) do
+                                            if not game.StarterPlayer[inner.Name]:FindFirstChild(scr.Name) then
+                                                scr.Parent = game.StarterPlayer[inner.Name]
+                                            end
+                                        end
+                                    else
+                                        inner.Parent = game.StarterPlayer
+                                    end
+                                end
+                            elseif obj.Name ~= "InsertService" and obj.Name ~= "TextChatService" then
+                                for _, item in pairs(obj:GetChildren()) do item.Parent = game[obj.Name] end
+                            end
+                        elseif obj:IsA("PostEffect") or obj.ClassName == "Sky" then
+                            obj.Parent = game.Lighting
+                        else
+                            SafeStudioFallback(obj)
+                        end
+                    end
+                end
+                assetClone:Destroy()
+                if ClearAssetRemote then pcall(function() ClearAssetRemote:InvokeServer(stringId) end) end
+                if statusTarget then statusTarget.Text = "Berhasil!" end
+            else
+                local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+                if clientSuccess and clientObj then
+                    SafeStudioFallback(clientObj)
+                    if statusTarget then statusTarget.Text = "Berhasil!" end
+                else
+                    if statusTarget then statusTarget.Text = "No Folder" end
+                end
+            end
+        else
+            local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+            if clientSuccess and clientObj then
+                SafeStudioFallback(clientObj)
+                if statusTarget then statusTarget.Text = "Berhasil!" end
+            else
+                if statusTarget then statusTarget.Text = "Gagal" end
+            end
+        end
+    else
+        local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+        if clientSuccess and clientObj then
+            SafeStudioFallback(clientObj)
+            if statusTarget then statusTarget.Text = "Berhasil!" end
+        else
+            if statusTarget then statusTarget.Text = "No Remote" end
+        end
+    end
+end
+
+-------------------------------------------------------------------------
+-- RENDER LIST ASSET & AUTOMATIC SCROLL BAR CANVAS CALIBRATION
+-------------------------------------------------------------------------
+local AssetInfoCache = {}
+
+local function RenderAssets(searchQuery)
+    ClearList()
+    
+    CurrentSessionId = CurrentSessionId + 1
+    local thisSession = CurrentSessionId
+    
+    local targetCategoryAtCall = CurrentCategory
+    
+    -- Pemilihan Sumber Data Berdasarkan Filter SavedButton
+    -- False: Render Katalog Remote (MasterAssets)
+    -- True: Render Khusus Data Lokal (SavedAssets/toolbox_assets.json)
+    local targetList = {}
+    if IsShowingSavedOnly then
+        targetList = SavedAssets[targetCategoryAtCall] or {}
+    else
+        targetList = MasterAssets[targetCategoryAtCall] or {}
+    end
+    
+    local query = ""
+    if searchQuery and searchQuery ~= "Search asset..." then
+        query = searchQuery:lower():match("^%s*(.-)%s*$") or ""
+    end
+
+    local function UpdateCanvas()
+        if CurrentCategory ~= targetCategoryAtCall then return end
+        local layout = ScrollingFrame:FindFirstChildOfClass("UIListLayout") or ScrollingFrame:FindFirstChildOfClass("UIGridLayout")
+        if layout then
+            ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 25)
+        end
+    end
+
+    for _, item in ipairs(targetList) do
+        task.spawn(function()
+            local assetId = typeof(item) == "table" and item.Id or item
+            local numericId = tonumber(assetId)
+            
+            if not numericId then return end
+
+            local success, info = true, AssetInfoCache[numericId]
+            
+            if not info then
+                success, info = pcall(function() return MarketplaceService:GetProductInfo(numericId) end)
+                if success and info then
+                    AssetInfoCache[numericId] = info
+                end
+            end
+            
+            if thisSession ~= CurrentSessionId or CurrentCategory ~= targetCategoryAtCall then 
+                return 
+            end
+            
+            if success and info then
+                -- Match Filter (Nama Asset, Creator Name, atau ID)
+                if query ~= "" then
+                    local nameLower = info.Name and info.Name:lower() or ""
+                    local creatorLower = (info.Creator and info.Creator.Name) and info.Creator.Name:lower() or ""
+                    local assetIdStr = tostring(numericId)
+                    
+                    if not nameLower:find(query, 1, true) and not creatorLower:find(query, 1, true) and not assetIdStr:find(query, 1, true) then
+                        return 
+                    end
+                end
+
+                -- Clone card berdasarkan Card_5d sebagai Template
+                local card = TemplateFrame:Clone()
+                card.Visible = true
+                card.Parent = ScrollingFrame
+                card.Name = "Asset_" .. numericId
+
+                -- Referensi elemen presisi sesuai Hirarki Card_5d
+                local ThumbnailAsset = card:FindFirstChild("ThumbnailAsset_5e") or card:FindFirstChild("ThumbnailAsset")
+                local NameLabel = card:FindFirstChild("Name_6e") or card:FindFirstChild("Name")
+                local CreatorLabel = card:FindFirstChild("Creator_60") or card:FindFirstChild("Creator")
+                local IDLabel = card:FindFirstChild("ID_70") or card:FindFirstChild("ID")
+                local IconSaved = card:FindFirstChild("IconSaved_62") or card:FindFirstChild("IconSaved")
+                
+                local BackgroundCopy = card:FindFirstChild("BackgroundCopy_63") or card:FindFirstChild("BackgroundCopy")
+                local CopyBtn = BackgroundCopy and (BackgroundCopy:FindFirstChild("CopyButton_64") or BackgroundCopy:FindFirstChild("CopyButton"))
+                
+                local BackgroundInsert = card:FindFirstChild("BackgroundInsert_69") or card:FindFirstChild("BackgroundInsert")
+                local InsertBtn = BackgroundInsert and (BackgroundInsert:FindFirstChild("InsertButton_6b") or BackgroundInsert:FindFirstChild("InsertButton"))
+
+                -- Memasukkan Data Text & Gambar
+                if NameLabel then NameLabel.Text = info.Name end
+                if CreatorLabel then CreatorLabel.Text = "By: " .. (info.Creator and info.Creator.Name or "Unknown") end
+                if IDLabel then IDLabel.Text = "ID : " .. tostring(numericId) end
+
+                if ThumbnailAsset then
+                    if targetCategoryAtCall == "Decal" then
+                        ThumbnailAsset.Image = "rbxthumb://type=Asset&id=" .. numericId .. "&w=150&h=150"
+                    elseif targetCategoryAtCall == "Audio" then
+                        ThumbnailAsset.Image = "rbxassetid://16327318049"
+                    else
+                        ThumbnailAsset.Image = "rbxthumb://type=Asset&id=" .. numericId .. "&w=150&h=150"
+                    end
+                end
+
+                -- Helper Refresh Status Warna Indicator IconSaved_62
+                local function RefreshSaveIcon()
+                    if IconSaved then
+                        local isSaved = IsAssetSaved(targetCategoryAtCall, numericId)
+                        IconSaved.ImageColor3 = isSaved and COLOR_ACTIVE or Color3.fromRGB(150, 150, 150)
+                    end
+                end
+                RefreshSaveIcon()
+
+                -- Interaksi Toggle Save/Unsave via IconSaved_62 pada Kartu
+                if IconSaved then
+                    IconSaved.MouseButton1Click:Connect(function()
+                        local categoryList = SavedAssets[targetCategoryAtCall]
+                        if not categoryList then
+                            categoryList = {}
+                            SavedAssets[targetCategoryAtCall] = categoryList
+                        end
+                        
+                        local isSaved = IsAssetSaved(targetCategoryAtCall, numericId)
+                        if isSaved then
+                            -- Unsave: Hapus ID dari toolbox_assets.json
+                            for i, id in ipairs(categoryList) do
+                                if tonumber(id) == numericId then
+                                    table.remove(categoryList, i)
+                                    break
+                                end
+                            end
+                        else
+                            -- Save: Tambahkan ID ke toolbox_assets.json
+                            table.insert(categoryList, numericId)
+                        end
+                        
+                        SaveUserData()
+                        RefreshSaveIcon()
+
+                        -- Re-render langsung jika sedang berada di mode IsShowingSavedOnly
+                        if IsShowingSavedOnly then
+                            RenderAssets(SearchBox.Text)
+                        end
+                    end)
+                end
+
+                -- Listener Tombol Copy ID (CopyButton_64)
+                if CopyBtn then
+                    CopyBtn.MouseButton1Click:Connect(function()
+                        setclipboard(tostring(numericId))
+                        local originalText = CopyBtn.Text
+                        CopyBtn.Text = "Copied!"
+                        task.wait(1)
+                        CopyBtn.Text = originalText
+                    end)
+                end
+
+                -- Listener Tombol Insert (InsertButton_6b)
+                if InsertBtn then
+                    InsertBtn.MouseButton1Click:Connect(function()
+                        InsertAsset(numericId, targetCategoryAtCall, InsertBtn)
+                        task.wait(1.5)
+                        InsertBtn.Text = "INSERT"
+                    end)
+                end
+            end
+        end)
+    end
+    
+    task.delay(0.5, UpdateCanvas)
+end
+
+-------------------------------------------------------------------------
+-- TAB SWITCHING SYSTEM
+-------------------------------------------------------------------------
+local function SwitchTab(tabName)
+    CurrentCategory = tabName
+    
+    -- Reset Background Tab ke Normal
+    ModelButton.BackgroundColor3 = COLOR_INACTIVE
+    DecalButton.BackgroundColor3 = COLOR_INACTIVE
+    AudioButton.BackgroundColor3 = COLOR_INACTIVE
+    if PluginButton then PluginButton.BackgroundColor3 = COLOR_INACTIVE end
+
+    -- Set Background Tab Aktif menggunakan COLOR_ACTIVE (RGB: 223, 230, 237)
+    if tabName == "Model" then ModelButton.BackgroundColor3 = COLOR_ACTIVE
+    elseif tabName == "Decal" then DecalButton.BackgroundColor3 = COLOR_ACTIVE
+    elseif tabName == "Audio" then AudioButton.BackgroundColor3 = COLOR_ACTIVE
+    elseif tabName == "Plugin" and PluginButton then PluginButton.BackgroundColor3 = COLOR_ACTIVE end
+    
+    SearchBox.Text = "Search asset..."
+    RenderAssets()
+end
+```[cite: 1]
+
+-------------------------------------------------------------------------
+-- HELPER: EFEK FOKUS & TRANSPARANSI INPUT BOX
+-------------------------------------------------------------------------
+local COLOR_TEXT_ACTIVE = Color3.fromRGB(223, 230, 237)
+
+local function SetupInputBoxBehavior(textBox, defaultPlaceholder)
+    -- Saat kotak di-klik / mulai diketik
+    textBox.Focused:Connect(function()
+        textBox.TextTransparency = 0
+        textBox.TextColor3 = COLOR_TEXT_ACTIVE
+        if textBox.Text == defaultPlaceholder then
+            textBox.Text = ""
+        end
+    end)
+
+    -- Saat fokus dilepas dari kotak
+    textBox.FocusLost:Connect(function()
+        if textBox.Text == "" or textBox.Text == defaultPlaceholder then
+            textBox.Text = defaultPlaceholder
+            textBox.TextTransparency = 0.5
+        else
+            textBox.TextTransparency = 0
+            textBox.TextColor3 = COLOR_TEXT_ACTIVE
+        end
+    end)
+
+    -- Deteksi perubahan teks (Pembersihan Teks Manual / Auto Clean ID)
+    textBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local currentText = textBox.Text
+        if currentText ~= "" and currentText ~= defaultPlaceholder then
+            textBox.TextTransparency = 0
+            textBox.TextColor3 = COLOR_TEXT_ACTIVE
+        end
+    end)
+end
+
+-- Menerapkan Efek Visual ke Seluruh Input Box
+SetupInputBoxBehavior(InsertIDBox, "Masukan Id asset...")
+SetupInputBoxBehavior(SearchBox, "Search asset...")
+SetupInputBoxBehavior(SaveIDBox, "Masukan ID save asset...")
+
+-------------------------------------------------------------------------
+-- ACTION LISTENERS & EVENT HANDLERS
+-------------------------------------------------------------------------
+ModelButton.MouseButton1Click:Connect(function() SwitchTab("Model") end)
+DecalButton.MouseButton1Click:Connect(function() SwitchTab("Decal") end)
+AudioButton.MouseButton1Click:Connect(function() SwitchTab("Audio") end)
+if PluginButton then
+    PluginButton.MouseButton1Click:Connect(function() SwitchTab("Plugin") end)
+end
+
+-- FUNGSIONALITAS 1: INSERT BUTTON
+InsertButton.MouseButton1Click:Connect(function()
+    local rawText = InsertIDBox.Text
+    
+    -- Mengekstrak khusus deretan angka ID saja dari teks input
+    local cleanId = tonumber(rawText:match("%d+"))
+
+    if cleanId then
+        -- Mengubah teks box hanya menyisakan angka ID-nya saja
+        InsertIDBox.Text = tostring(cleanId)
+        InsertIDBox.TextTransparency = 0
+        InsertIDBox.TextColor3 = COLOR_TEXT_ACTIVE
+
+        InsertButton.Text = "WORKING"
+        InsertAsset(cleanId, nil, InsertButton)
+        task.wait(1.5)
+        InsertButton.Text = "INSERT"
+        -- Teks ID di InsertIDBox TIDAK DIHAPUS OTOMATIS (Sama seperti SearchBox & SaveBox)
+    else
+        InsertIDBox.Text = "Harus ID Angka!"
+        InsertIDBox.TextTransparency = 0
+        task.wait(1.5)
+        
+        -- Jika gagal validasi, kembalikan ke Placeholder default
+        if InsertIDBox.Text == "Harus ID Angka!" then
+            InsertIDBox.Text = "Masukan Id asset..."
+            InsertIDBox.TextTransparency = 0.5
+        end
+    end
+end)
 
 return LMG2L["ScreenGui_1"], require;
