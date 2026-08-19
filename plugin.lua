@@ -1575,261 +1575,255 @@ TemplateFrame.Visible = false
 TemplateFrame.Parent = nil
 
 -------------------------------------------------------------------------
--- DATA CONFIGURATION & DUAL STORAGE SYSTEM (FIXED LOGIC)
+-- CONFIGURATION & SKEMA WARNA DYNAMIC (PERBAIKAN VISUAL & HARDCODE)
 -------------------------------------------------------------------------
-local ASSETS_URL = "https://raw.githubusercontent.com/narakuhub/plugin/refs/heads/main/Assets.json"
-
-local CurrentCategory = "Model" 
-local CurrentSessionId = 0
-local CurrentTabMode = "Search" -- "Search" (dari Assets.json) atau "Saved" (dari toolbox_assets.json)
-
--- Katalog/Master Database Asset (Diunduh dari GitHub)
-local MasterAssets = {
-    Model = {},
-    Decal = {},
-    Audio = {},
-    Plugin = {}
-}
-
--- Database Asset yang Disimpan User (Lokal via Executor File System)
-local SavedAssets = {
-    Model = {89464989224212, 16063473188},
-    Decal = {4846381420},
-    Audio = {118149279616179, 124112959171614},
-    Plugin = {}
-}
-
--- Definisi Warna UI dari Elemen Hardcode
-local COLOR_ACTIVE = Color3.fromRGB(29, 171, 223)   
+-- Warna Aktif: Soft Light Blue/Gray (223, 230, 237)
+local COLOR_ACTIVE = Color3.fromRGB(223, 230, 237)   
 local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36) 
-local COLOR_TEXT_SELECTED = Color3.fromRGB(255, 255, 255)
-local COLOR_TEXT_DESELECTED = Color3.fromRGB(150, 150, 150)
 
--- Helper pengecekan folder executor
-local isfolder = isfolder or function(path) return false end
+local COLOR_TEXT_ACTIVE = Color3.fromRGB(0, 0, 0) -- Teks/Icon Hitam saat Active
+local COLOR_TEXT_INACTIVE = Color3.fromRGB(255, 255, 255) -- Teks Normal saat Inactive
+local COLOR_ICON_INACTIVE = Color3.fromRGB(200, 200, 200)
 
 -------------------------------------------------------------------------
--- LOCAL STORAGE: TOOLBOX_ASSETS.JSON (USER SAVED ASSETS)
+-- FIX: RENDER LIST ASSET (PENYESUAIAN HIRARKI CARD_5D & DUAL STORAGE)
 -------------------------------------------------------------------------
--- Memuat data tersimpan milik user dari file lokal
-local function LoadSavedAssets()
-    if makefolder and isfile and readfile then
-        pcall(function()
-            if not isfolder("delta") then 
-                makefolder("delta") 
-            end
-            if isfile("delta/toolbox_assets.json") then
-                local data = readfile("delta/toolbox_assets.json")
-                local decoded = HttpService:JSONDecode(data)
-                if type(decoded) == "table" then 
-                    SavedAssets.Model = decoded.Model or SavedAssets.Model
-                    SavedAssets.Decal = decoded.Decal or SavedAssets.Decal
-                    SavedAssets.Audio = decoded.Audio or SavedAssets.Audio
-                    SavedAssets.Plugin = decoded.Plugin or SavedAssets.Plugin
+local AssetInfoCache = {}
+
+local function RenderAssets(searchQuery)
+    ClearList()
+    
+    CurrentSessionId = CurrentSessionId + 1
+    local thisSession = CurrentSessionId
+    
+    local targetCategoryAtCall = CurrentCategory
+    local targetModeAtCall = CurrentTabMode
+    
+    -- Seleksi Sumber Data ID Asset (URL Assets.json vs File Lokal toolbox_assets.json)
+    local sourceList = {}
+    if targetModeAtCall == "Saved" then
+        sourceList = SavedAssets[targetCategoryAtCall] or {}
+    else
+        sourceList = MasterAssets[targetCategoryAtCall] or {}
+    end
+    
+    local query = ""
+    if searchQuery and searchQuery ~= "" and searchQuery ~= "Search asset..." then
+        query = searchQuery:lower():match("^%s*(.-)%s*$") or ""
+    end
+
+    -- Otomatisasi Tinggi Canvas
+    local function UpdateCanvas()
+        if CurrentCategory ~= targetCategoryAtCall or CurrentTabMode ~= targetModeAtCall then return end
+        if not ScrollingFrame then return end
+        local layout = ScrollingFrame:FindFirstChildOfClass("UIListLayout")
+        if layout then
+            ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 25)
+        end
+    end
+
+    local totalLoadedCount = 0
+
+    for _, assetId in ipairs(sourceList) do
+        task.spawn(function()
+            local numericId = tonumber(assetId)
+            if not numericId then return end
+
+            local success, info = true, AssetInfoCache[numericId]
+            
+            if not info then
+                success, info = pcall(function() 
+                    return MarketplaceService:GetProductInfo(numericId) 
+                end)
+                if success and info then
+                    AssetInfoCache[numericId] = info
                 end
             end
-        end)
-    end
-end
-
--- Menyimpan data tersimpan milik user ke file lokal
-local function SaveSavedAssets()
-    if writefile then
-        pcall(function()
-            if not isfolder("delta") then 
-                makefolder("delta") 
-            end
-            writefile("delta/toolbox_assets.json", HttpService:JSONEncode(SavedAssets))
-        end)
-    end
-end
-
--------------------------------------------------------------------------
--- MASTER DATABASE: ASSETS.JSON (KATALOG UTAMA ONLINE)
--------------------------------------------------------------------------
--- Mengunduh Master Database dari URL GitHub
-local function FetchMasterAssets(onComplete)
-    task.spawn(function()
-        local success, result = pcall(function()
-            return game:HttpGet(ASSETS_URL)
-        end)
-        
-        if success and result then
-            local decodedSuccess, decoded = pcall(function()
-                return HttpService:JSONDecode(result)
-            end)
             
-            if decodedSuccess and type(decoded) == "table" then
-                -- Menggabungkan data dari remote Assets.json ke MasterAssets
-                MasterAssets.Model = decoded.Model or MasterAssets.Model
-                MasterAssets.Decal = decoded.Decal or MasterAssets.Decal
-                MasterAssets.Audio = decoded.Audio or MasterAssets.Audio
-                MasterAssets.Plugin = decoded.Plugin or MasterAssets.Plugin
+            -- Guard Session & Tab untuk mencegah race condition
+            if thisSession ~= CurrentSessionId or CurrentCategory ~= targetCategoryAtCall or CurrentTabMode ~= targetModeAtCall then 
+                return 
             end
-        end
+            
+            if success and info then
+                -- Filtering Nama, Creator, dan ID
+                if query ~= "" then
+                    local assetNameLower = info.Name and info.Name:lower() or ""
+                    local creatorNameLower = (info.Creator and info.Creator.Name) and info.Creator.Name:lower() or ""
+                    local assetIdStr = tostring(numericId)
+                    
+                    local matchName = assetNameLower:find(query, 1, true)
+                    local matchCreator = creatorNameLower:find(query, 1, true)
+                    local matchId = assetIdStr:find(query, 1, true)
+                    
+                    if not matchName and not matchCreator and not matchId then
+                        return 
+                    end
+                end
 
-        if onComplete then
-            onComplete()
-        end
-    end)
-end
+                -- Clone Template Card_5d
+                local card = TemplateFrame:Clone() -- Menggunakan Card_5d sebagai template
+                card.Visible = true
+                card.Parent = ScrollingFrame
+                card.Name = "Asset_" .. numericId
 
--------------------------------------------------------------------------
--- HELPER UTILITY FOR ASSET ID MATCHING & MANAGEMENT
--------------------------------------------------------------------------
--- Memeriksa apakah suatu Asset ID ada di daftar simpanan user (toolbox_assets.json)
-local function IsAssetSaved(category, assetId)
-    local numericId = tonumber(assetId)
-    if not numericId or not SavedAssets[category] then return false end
+                -- Presisi Pemetaan Elemen Berdasarkan Hirarki Card_5d
+                local ThumbnailAsset = card:FindFirstChild("ThumbnailAsset_5e")
+                local CreatorLabel = card:FindFirstChild("Creator_60")
+                local IconSaved = card:FindFirstChild("IconSaved_62")
+                
+                local BackgroundCopy = card:FindFirstChild("BackgroundCopy_63")
+                local CopyButton = BackgroundCopy and BackgroundCopy:FindFirstChild("CopyButton_64")
+                
+                local BackgroundInsert = card:FindFirstChild("BackgroundInsert_69")
+                local InsertButton = BackgroundInsert and BackgroundInsert:FindFirstChild("InsertButton_6b")
+                
+                local NameLabel = card:FindFirstChild("Name_6e")
+                local IDLabel = card:FindFirstChild("ID_70")
+
+                -- Value Injection ke UI
+                if NameLabel then NameLabel.Text = info.Name end
+                if CreatorLabel then CreatorLabel.Text = "By: " .. (info.Creator and info.Creator.Name or "Unknown") end
+                if IDLabel then IDLabel.Text = "ID : " .. tostring(numericId) end
+
+                -- Media Thumbnail Handler
+                if ThumbnailAsset and ThumbnailAsset:IsA("ImageLabel") then
+                    if targetCategoryAtCall == "Decal" then
+                        ThumbnailAsset.Image = "rbxthumb://type=Asset&id=" .. numericId .. "&w=150&h=150"
+                    elseif targetCategoryAtCall == "Audio" then
+                        ThumbnailAsset.Image = "rbxassetid://16327318049"
+                    else
+                        ThumbnailAsset.Image = "rbxthumb://type=Asset&id=" .. numericId .. "&w=150&h=150"
+                    end
+                end
+
+                -- Pengaturan Visual IconSaved_62
+                if IconSaved then
+                    local isSaved = IsAssetSaved(targetCategoryAtCall, numericId)
+                    
+                    if targetModeAtCall == "Saved" then
+                        IconSaved.Visible = true
+                        if IconSaved:IsA("ImageLabel") then
+                            IconSaved.ImageColor3 = COLOR_TEXT_ACTIVE
+                            IconSaved.ImageTransparency = 0
+                        end
+                    else
+                        if isSaved then
+                            IconSaved.Visible = true
+                            if IconSaved:IsA("ImageLabel") then
+                                IconSaved.ImageColor3 = COLOR_ACTIVE
+                                IconSaved.ImageTransparency = 0
+                            end
+                        else
+                            IconSaved.Visible = false
+                        end
+                    end
+                end
+
+                -- Event Listener Copy Button (CopyButton_64)
+                if CopyButton then
+                    CopyButton.MouseButton1Click:Connect(function()
+                        setclipboard(tostring(numericId))
+                        local copyText = CopyButton:FindFirstChildOfClass("TextLabel") or CopyButton
+                        local origText = copyText.Text
+                        
+                        -- Feedback Visual Klik
+                        CopyButton.BackgroundColor3 = COLOR_ACTIVE
+                        if copyText:IsA("TextLabel") then copyText.TextColor3 = COLOR_TEXT_ACTIVE end
+                        copyText.Text = "Copied!"
+                        
+                        task.wait(1)
+                        CopyButton.BackgroundColor3 = COLOR_INACTIVE
+                        if copyText:IsA("TextLabel") then copyText.TextColor3 = COLOR_TEXT_INACTIVE end
+                        copyText.Text = origText
+                    end)
+                end
+
+                -- Event Listener Insert Button (InsertButton_6b)
+                if InsertButton then
+                    InsertButton.MouseButton1Click:Connect(function()
+                        local insertText = InsertButton:FindFirstChildOfClass("TextLabel") or InsertButton
+                        
+                        -- State Active Button Visual
+                        InsertButton.BackgroundColor3 = COLOR_ACTIVE
+                        if insertText:IsA("TextLabel") then insertText.TextColor3 = COLOR_TEXT_ACTIVE end
+                        
+                        InsertAsset(numericId, targetCategoryAtCall, insertText)
+                        
+                        task.wait(1.5)
+                        -- Restore Inactive State Button Visual
+                        InsertButton.BackgroundColor3 = COLOR_INACTIVE
+                        if insertText:IsA("TextLabel") then
+                            insertText.TextColor3 = COLOR_TEXT_INACTIVE
+                            insertText.Text = "INSERT"
+                        end
+                    end)
+                end
+
+                totalLoadedCount = totalLoadedCount + 1
+                if AmountAsset then
+                    AmountAsset.Text = tostring(totalLoadedCount) .. " Assets"
+                end
+
+                UpdateCanvas()
+            end
+        end)
+    end
     
-    for _, id in ipairs(SavedAssets[category]) do
-        if tonumber(id) == numericId then
-            return true
-        end
-    end
-    return false
+    task.delay(0.3, UpdateCanvas)
 end
 
--- Menambahkan Asset ID ke toolbox_assets.json (Save)
-local function AddSavedAsset(category, assetId)
-    local numericId = tonumber(assetId)
-    if not numericId then return end
-    if not SavedAssets[category] then SavedAssets[category] = {} end
+-------------------------------------------------------------------------
+-- FIX: SWAPPING VISUAL TAB & MODE DENGAN SKEMA WARNA BARU
+-------------------------------------------------------------------------
+local function SwitchTab(categoryName)
+    CurrentCategory = categoryName
+
+    -- Reset Seluruh Status Button Tab ke Normal/Inactive
+    local tabs = {ModelButton, DecalButton, AudioButton, PluginButton}
+    for _, btn in ipairs(tabs) do
+        if btn then
+            btn.BackgroundColor3 = COLOR_INACTIVE
+            local txt = btn:FindFirstChildOfClass("TextLabel") or btn
+            if txt:IsA("TextLabel") then txt.TextColor3 = COLOR_TEXT_INACTIVE end
+        end
+    end
+
+    -- Hit Active State Tab Button Selected
+    local targetBtn = nil
+    if categoryName == "Model" then targetBtn = ModelButton
+    elseif categoryName == "Decal" then targetBtn = DecalButton
+    elseif categoryName == "Audio" then targetBtn = AudioButton
+    elseif categoryName == "Plugin" then targetBtn = PluginButton end
+
+    if targetBtn then
+        targetBtn.BackgroundColor3 = COLOR_ACTIVE
+        local targetTxt = targetBtn:FindFirstChildOfClass("TextLabel") or targetBtn
+        if targetTxt:IsA("TextLabel") then targetTxt.TextColor3 = COLOR_TEXT_ACTIVE end
+    end
     
-    if not IsAssetSaved(category, numericId) then
-        table.insert(SavedAssets[category], numericId)
-        SaveSavedAssets()
-    end
+    if SearchBox then SearchBox.Text = "" end
+    RenderAssets("")
 end
 
--- Menghapus Asset ID dari toolbox_assets.json saja (Unsave)
-local function RemoveSavedAsset(category, assetId)
-    local numericId = tonumber(assetId)
-    if not numericId or not SavedAssets[category] then return end
-    
-    for index, id in ipairs(SavedAssets[category]) do
-        if tonumber(id) == numericId then
-            table.remove(SavedAssets[category], index)
-            SaveSavedAssets()
-            break
-        end
-    end
-end
-
--------------------------------------------------------------------------
--- MANAGEMENT RENDER CONTAINER & CLEAR LIST
--------------------------------------------------------------------------
--- Membersihkan isi list rendering lama di ScrollingFrame
-local function ClearList()
-    if not ScrollingFrame then return end
-    for _, item in ipairs(ScrollingFrame:GetChildren()) do
-        if item:IsA("Frame") and item ~= TemplateFrame then
-            item:Destroy()
-        end
-    end
-    if AmountAsset then
-        AmountAsset.Text = "0 Assets"
-    end
-end
-
--------------------------------------------------------------------------
--- LOGIKA DETEKSI KATEGORI OTOMATIS BERDASARKAN ROBLOX MARKETPLACE ID
--------------------------------------------------------------------------
-local function GetCategoryFromAssetType(assetTypeId)
-    -- Decal / Image / Shirt / Pants
-    if assetTypeId == 13 or assetTypeId == 1 or assetTypeId == 2 or assetTypeId == 14 or assetTypeId == 11 or assetTypeId == 12 then
-        return "Decal"
-    -- Audio / Sound
-    elseif assetTypeId == 3 or assetTypeId == 34 then
-        return "Audio"
-    -- Plugin
-    elseif assetTypeId == 38 then
-        return "Plugin"
-    -- Default / Model / Mesh / Package
-    else
-        return "Model"
-    end
-end
-
--------------------------------------------------------------------------
--- FIX LOGIC: TOGGLE MODE SEARCH (URL) VS SAVED (LOCAL FILE)
--------------------------------------------------------------------------
 local function ToggleSavedMode()
+    local savedText = CardSaved and (CardSaved:FindFirstChildOfClass("TextLabel") or CardSaved)
+    local savedIcon = CardSaved and (CardSaved:FindFirstChildOfClass("ImageLabel") or CardSaved:FindFirstChild("IconSaved_2e"))
+
     if CurrentTabMode == "Search" then
-        -- Pindah ke mode melihat file lokal toolbox_assets.json
         CurrentTabMode = "Saved"
-        if CardSaved then 
-            CardSaved.BackgroundColor3 = COLOR_ACTIVE 
-        end
+        if CardSaved then CardSaved.BackgroundColor3 = COLOR_ACTIVE end
+        if savedText and savedText:IsA("TextLabel") then savedText.TextColor3 = COLOR_TEXT_ACTIVE end
+        if savedIcon and savedIcon:IsA("ImageLabel") then savedIcon.ImageColor3 = COLOR_TEXT_ACTIVE end
     else
-        -- Kembali ke mode katalog utama online dari URL Assets.json
         CurrentTabMode = "Search"
-        if CardSaved then 
-            CardSaved.BackgroundColor3 = COLOR_INACTIVE 
-        end
+        if CardSaved then CardSaved.BackgroundColor3 = COLOR_INACTIVE end
+        if savedText and savedText:IsA("TextLabel") then savedText.TextColor3 = COLOR_TEXT_INACTIVE end
+        if savedIcon and savedIcon:IsA("ImageLabel") then savedIcon.ImageColor3 = COLOR_ICON_INACTIVE end
     end
     
-    -- Re-render ulang isi ScrollingFrame sesuai mode baru
-    if RenderAssets then
-        RenderAssets(SearchBox and SearchBox.Text or "")
-    end
+    RenderAssets(SearchBox and SearchBox.Text or "")
 end
-
--- Menghubungkan Event Click pada CardSaved / SavedButton_2c
-if SavedButton then
-    SavedButton.MouseButton1Click:Connect(function()
-        ToggleSavedMode()
-    end)
-elseif CardSaved then
-    CardSaved.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            ToggleSavedMode()
-        end
-    end)
-end
-
--------------------------------------------------------------------------
--- LOGIK VISUALIZATION ICONSAVED_62 FILTERING
--------------------------------------------------------------------------
--- Panggil fungsi ini di dalam loop RenderAssets saat membuat Card Frame
-local function ApplySavedIconFilter(cardFrame, assetId, category)
-    local iconSaved = cardFrame:FindFirstChild("IconSaved_62") or cardFrame:FindFirstChild("IconSaved")
-    if not iconSaved then return end
-
-    if CurrentTabMode == "Saved" then
-        -- Jika yang diload adalah file toolbox_assets.json -> Aktifkan/Tampilkan Icon
-        iconSaved.Visible = true
-        if iconSaved:IsA("ImageLabel") then
-            iconSaved.ImageColor3 = COLOR_ACTIVE
-            iconSaved.ImageTransparency = 0
-        end
-    else
-        -- Jika yang diload adalah URL Assets.json -> Sembunyikan / Padamkan Icon
-        if IsAssetSaved(category, assetId) then
-            -- Opsional: Jika di URL tapi ada di saved list user
-            iconSaved.Visible = true
-            if iconSaved:IsA("ImageLabel") then
-                iconSaved.ImageColor3 = COLOR_ACTIVE
-                iconSaved.ImageTransparency = 0
-            end
-        else
-            iconSaved.Visible = false
-        end
-    end
-end
-
--------------------------------------------------------------------------
--- INITIALIZATION RUN
--------------------------------------------------------------------------
-LoadSavedAssets()
-FetchMasterAssets(function()
-    -- Begitu data dari URL GitHub selesai diunduh, langsung render tampilan utama
-    if SwitchTab then
-        SwitchTab("Model")
-    elseif RenderAssets then
-        RenderAssets("")
-    end
-end)
 
 -------------------------------------------------------------------------
 -- FUNGSI INSERT UTAMA (SISTEM FALLBACK INTELIJEN UNTUK WORKSPACE RESMI)
