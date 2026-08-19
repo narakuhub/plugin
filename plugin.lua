@@ -1574,4 +1574,100 @@ local AssetTemplate = TemplateFrame:Clone()
 TemplateFrame.Visible = false
 TemplateFrame.Parent = nil
 
+-------------------------------------------------------------------------
+-- DATA CONFIGURATION & LOCAL STORAGE SYSTEM
+-------------------------------------------------------------------------
+local CurrentCategory = "Model" 
+local CurrentSessionId = 0
+local CurrentTabMode = "Search" -- Mode aktif: "Search" atau "Saved"
+
+local SavedAssets = {
+    Model = {89464989224212, 16063473188},
+    Decal = {4846381420},
+    Audio = {118149279616179, 124112959171614},
+    Plugin = {} -- Mendukung kategori Plugin di UI baru
+}
+
+-- Definisi Warna UI dari Elemen Hardcode
+local COLOR_ACTIVE = Color3.fromRGB(29, 171, 223)   
+local COLOR_INACTIVE = Color3.fromRGB(36, 36, 36) 
+local COLOR_TEXT_SELECTED = Color3.fromRGB(255, 255, 255)
+local COLOR_TEXT_DESELECTED = Color3.fromRGB(150, 150, 150)
+
+-- Helper pengecekan folder executor
+local isfolder = isfolder or function(path) return false end
+
+-- Memuat data tersimpan dari file sistem executor
+local function LoadData()
+    if makefolder and isfile and readfile then
+        pcall(function()
+            if not isfolder("delta") then 
+                makefolder("delta") 
+            end
+            if isfile("delta/toolbox_assets.json") then
+                local data = readfile("delta/toolbox_assets.json")
+                local decoded = HttpService:JSONDecode(data)
+                if type(decoded) == "table" then 
+                    -- Pastikan semua key kategori utama ada
+                    SavedAssets.Model = decoded.Model or SavedAssets.Model
+                    SavedAssets.Decal = decoded.Decal or SavedAssets.Decal
+                    SavedAssets.Audio = decoded.Audio or SavedAssets.Audio
+                    SavedAssets.Plugin = decoded.Plugin or SavedAssets.Plugin
+                end
+            end
+        end)
+    end
+end
+
+-- Menyimpan data ke file sistem executor
+local function SaveData()
+    if writefile then
+        pcall(function()
+            if not isfolder("delta") then 
+                makefolder("delta") 
+            end
+            writefile("delta/toolbox_assets.json", HttpService:JSONEncode(SavedAssets))
+        end)
+    end
+end
+
+-- Panggil LoadData saat script dijalankan
+LoadData()
+
+-------------------------------------------------------------------------
+-- MANAGEMENT RENDER CONTAINER & CLEAR LIST
+-------------------------------------------------------------------------
+-- Membersihkan isi list rendering lama di ScrollingFrame_5a
+local function ClearList()
+    for _, item in ipairs(ScrollingFrame:GetChildren()) do
+        -- Menghapus item Card/Frame hasil kloning, dan tidak menyentuh UI Component (UIListLayout, UIPadding, dsb)
+        if item:IsA("Frame") and item ~= TemplateFrame then
+            item:Destroy()
+        end
+    end
+    -- Reset indikator jumlah asset
+    if AmountAsset then
+        AmountAsset.Text = "0 Assets"
+    end
+end
+
+-------------------------------------------------------------------------
+-- LOGIKA DETEKSI KATEGORI OTOMATIS BERDASARKAN ROBLOX MARKETPLACE ID
+-------------------------------------------------------------------------
+local function GetCategoryFromAssetType(assetTypeId)
+    -- Decal / Image / Shirt / Pants
+    if assetTypeId == 13 or assetTypeId == 1 or assetTypeId == 2 or assetTypeId == 14 or assetTypeId == 11 or assetTypeId == 12 then
+        return "Decal"
+    -- Audio / Sound
+    elseif assetTypeId == 3 or assetTypeId == 34 then
+        return "Audio"
+    -- Plugin
+    elseif assetTypeId == 38 then
+        return "Plugin"
+    -- Default / Model / Mesh / Package
+    else
+        return "Model"
+    end
+end
+
 return LMG2L["ScreenGui_1"], require;
