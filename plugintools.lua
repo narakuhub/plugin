@@ -1715,6 +1715,379 @@ local function InsertAsset(assetId, category, statusTarget)
     end
 end
 
+-------------------------------------------------------------------------
+-- RENDER LIST ASSET & AUTOMATIC SCROLL BAR CANVAS CALIBRATION
+-------------------------------------------------------------------------
+local AssetInfoCache = {}
 
+local function RenderAssets(searchQuery)
+    ClearList()
+    
+    CurrentSessionId = CurrentSessionId + 1
+    local thisSession = CurrentSessionId
+    
+    local targetCategoryAtCall = CurrentCategory
+    
+    -- Pemilihan Sumber Data berdasarkan Filter SavedButton
+    local rawList = MasterAssets[targetCategoryAtCall] or {}
+    local targetList = {}
+
+    if IsShowingSavedOnly then
+        -- Ambil asset dari MasterAssets yang ada di SavedAssets user
+        for _, item in ipairs(rawList) do
+            local assetId = typeof(item) == "table" and item.Id or item
+            if IsAssetSaved(targetCategoryAtCall, assetId) then
+                table.insert(targetList, item)
+            end
+        end
+    else
+        targetList = rawList
+    end
+
+    local query = ""
+    if searchQuery and searchQuery ~= "Search asset..." then
+        query = searchQuery:lower():match("^%s*(.-)%s*$") or ""
+    end
+
+    local function UpdateCanvas()
+        if CurrentCategory ~= targetCategoryAtCall then return end
+        local layout = ScrollingFrame:FindFirstChildOfClass("UIListLayout") or ScrollingFrame:FindFirstChildOfClass("UIGridLayout")
+        if layout then
+            ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 25)
+        end
+    end
+
+    for _, item in ipairs(targetList) do
+        task.spawn(function()
+            local assetId = typeof(item) == "table" and item.Id or item
+            local numericId = tonumber(assetId)
+            
+            local success, info = true, AssetInfoCache[numericId]
+            
+            if not info then
+                success, info = pcall(function() return MarketplaceService:GetProductInfo(numericId) end)
+                if success and info then
+                    AssetInfoCache[numericId] = info
+                end
+            end
+            
+            if thisSession ~= CurrentSessionId or CurrentCategory ~= targetCategoryAtCall then 
+                return 
+            end
+            
+            if success and info then
+                if query ~= "" then
+                    local assetNameLower = info.Name:lower()
+                    local assetIdStr = tostring(numericId)
+                    if not assetNameLower:find(query, 1, true) and not assetIdStr:find(query, 1, true) then
+                        return 
+                    end
+                end
+
+                -- Clone card berdasarkan Card_5d sebagai Template
+                local card = TemplateFrame:Clone()
+                card.Visible = true
+                card.Parent = ScrollingFrame
+                card.Name = "Asset_" .. numericId
+
+                -- Referensi elemen di dalam Card_5d (Struktur Baru)
+                local ThumbnailAsset = card:FindFirstChild("ThumbnailAsset")
+                local NameLabel = card:FindFirstChild("Name")
+                if not NameLabel then NameLabel = card:FindFirstChild("NameAsset") end
+                local CreatorLabel = card:FindFirstChild("Creator")
+                if not CreatorLabel then CreatorLabel = card:FindFirstChild("NamaPembuat") end
+                local IDLabel = card:FindFirstChild("ID")
+                
+                local BackgroundInsert = card:FindFirstChild("BackgroundInsert")
+                local InsertBtn = BackgroundInsert and BackgroundInsert:FindFirstChild("InsertButton") or card:FindFirstChild("InsertButton")
+                
+                local BackgroundCopy = card:FindFirstChild("BackgroundCopy")
+                local CopyBtn = BackgroundCopy and BackgroundCopy:FindFirstChild("CopyButton") or card:FindFirstChild("SalinIDButton")
+                
+                local IconSavedBtn = card:FindFirstChild("IconSaved")
+
+                -- Memasukkan Data Text & Gambar
+                if NameLabel then NameLabel.Text = info.Name end
+                if CreatorLabel then CreatorLabel.Text = "By: " .. (info.Creator and info.Creator.Name or "Unknown") end
+                if IDLabel then IDLabel.Text = "ID: " .. tostring(numericId) end
+
+                if ThumbnailAsset then
+                    if targetCategoryAtCall == "Decal" then
+                        ThumbnailAsset.Image = "rbxthumb://type=Asset&id=" .. numericId .. "&w=150&h=150"
+                    elseif targetCategoryAtCall == "Audio" then
+                        ThumbnailAsset.Image = "rbxassetid://16327318049"
+                    else
+                        ThumbnailAsset.Image = "rbxthumb://type=Asset&id=" .. numericId .. "&w=150&h=150"
+                    end
+                end
+
+                -- Update Status Visual IconSaved berdasarkan toolbox_assets.json
+                local function RefreshSaveIcon()
+                    if IconSavedBtn then
+                        local saved = IsAssetSaved(targetCategoryAtCall, numericId)
+                        IconSavedBtn.ImageColor3 = saved and COLOR_ACTIVE or Color3.fromRGB(150, 150, 150)
+                    end
+                end
+                RefreshSaveIcon()
+
+                -- Toggle Save/Unsave via IconSaved
+                if IconSavedBtn then
+                    IconSavedBtn.MouseButton1Click:Connect(function()
+                        local categoryList = SavedAssets[targetCategoryAtCall]
+                        if not categoryList then
+                            categoryList = {}
+                            SavedAssets[targetCategoryAtCall] = categoryList
+                        end
+                        
+                        local isSaved = IsAssetSaved(targetCategoryAtCall, numericId)
+                        if isSaved then
+                            -- Unsave: Hapus ID dari toolbox_assets.json saja
+                            for i, id in ipairs(categoryList) do
+                                if tonumber(id) == numericId then
+                                    table.remove(categoryList, i)
+                                    break
+                                end
+                            end
+                        else
+                            -- Save: Tambahkan ID ke toolbox_assets.json
+                            table.insert(categoryList, numericId)
+                        end
+                        
+                        SaveUserData()
+                        RefreshSaveIcon()
+
+                        -- Re-render jika sedang dalam mode filter Saved Only
+                        if IsShowingSavedOnly then
+                            RenderAssets(SearchBox.Text)
+                        end
+                    end)
+                end
+
+                -- Event Handler Tombol Salin/Copy ID
+                if CopyBtn then
+                    CopyBtn.MouseButton1Click:Connect(function()
+                        setclipboard(tostring(numericId))
+                        local originalText = CopyBtn.Text
+                        CopyBtn.Text = "Copied!"
+                        task.wait(1)
+                        CopyBtn.Text = originalText
+                    end)
+                end
+
+                -- Event Handler Tombol Insert Card
+                if InsertBtn then
+                    InsertBtn.MouseButton1Click:Connect(function()
+                        InsertAsset(numericId, targetCategoryAtCall, InsertBtn)
+                        task.wait(1.5)
+                        InsertBtn.Text = "INSERT"
+                    end)
+                end
+            end
+        end)
+    end
+    
+    task.delay(0.5, UpdateCanvas)
+end
+
+local function SwitchTab(tabName)
+    CurrentCategory = tabName
+    ModelButton.BackgroundColor3 = COLOR_INACTIVE
+    DecalButton.BackgroundColor3 = COLOR_INACTIVE
+    AudioButton.BackgroundColor3 = COLOR_INACTIVE
+    if PluginButton then PluginButton.BackgroundColor3 = COLOR_INACTIVE end
+
+    if tabName == "Model" then ModelButton.BackgroundColor3 = COLOR_ACTIVE
+    elseif tabName == "Decal" then DecalButton.BackgroundColor3 = COLOR_ACTIVE
+    elseif tabName == "Audio" then AudioButton.BackgroundColor3 = COLOR_ACTIVE
+    elseif tabName == "Plugin" and PluginButton then PluginButton.BackgroundColor3 = COLOR_ACTIVE end
+    
+    SearchBox.Text = "Search asset..."
+    RenderAssets()
+end
+
+-------------------------------------------------------------------------
+-- ACTION LISTENERS & EVENT HANDLERS
+-------------------------------------------------------------------------
+ModelButton.MouseButton1Click:Connect(function() SwitchTab("Model") end)
+DecalButton.MouseButton1Click:Connect(function() SwitchTab("Decal") end)
+AudioButton.MouseButton1Click:Connect(function() SwitchTab("Audio") end)
+if PluginButton then
+    PluginButton.MouseButton1Click:Connect(function() SwitchTab("Plugin") end)
+end
+
+-- Filter Saved Button Toggle (CardSaved_2a -> SavedButton_2c)
+local SavedButton = LMG2L["SavedButton_2c"]
+if SavedButton then
+    SavedButton.MouseButton1Click:Connect(function()
+        IsShowingSavedOnly = not IsShowingSavedOnly
+        SavedButton.BackgroundColor3 = IsShowingSavedOnly and COLOR_ACTIVE or COLOR_INACTIVE
+        RenderAssets(SearchBox.Text)
+    end)
+end
+
+-- Search Engine Listener
+SearchButton.MouseButton1Click:Connect(function()
+    RenderAssets(SearchBox.Text)
+end)
+
+-- FUNGSIONALITAS 1: INSERT BUTTON (Murni Load langsung ID dari kolom ke Workspace)
+InsertButton.MouseButton1Click:Connect(function()
+    local inputText = InsertIDBox.Text
+    local cleanId = tonumber(inputText:match("%d+"))
+
+    if cleanId and tostring(cleanId) == inputText:match("%d+") then
+        InsertButton.Text = "WORKING"
+        InsertAsset(cleanId, nil, InsertButton)
+        task.wait(1.5)
+        InsertButton.Text = "INSERT"
+        InsertIDBox.Text = "Masukan Id asset..."
+    else
+        InsertIDBox.Text = "Harus ID Angka!"
+        task.wait(1.5)
+        InsertIDBox.Text = "Masukan Id asset..."
+    end
+end)
+
+-- FUNGSIONALITAS 2: SAVE ID BUTTON (Menambahkan ID Manual ke toolbox_assets.json)
+SaveIDButton.MouseButton1Click:Connect(function()
+    local inputText = SaveIDBox.Text
+    local cleanId = tonumber(inputText:match("%d+"))
+
+    if cleanId then
+        local categoryList = SavedAssets[CurrentCategory]
+        if not categoryList then
+            categoryList = {}
+            SavedAssets[CurrentCategory] = categoryList
+        end
+
+        if not IsAssetSaved(CurrentCategory, cleanId) then
+            table.insert(categoryList, cleanId)
+            SaveUserData()
+            
+            SaveIDButton.Text = "SAVED!"
+            task.wait(1)
+            SaveIDButton.Text = "SAVE"
+            SaveIDBox.Text = "Masukan Id asset..."
+            
+            RenderAssets(SearchBox.Text)
+        else
+            SaveIDBox.Text = "Sudah Ada!"
+            task.wait(1.5)
+            SaveIDBox.Text = "Masukan Id asset..."
+        end
+    else
+        SaveIDBox.Text = "Harus ID Angka!"
+        task.wait(1.5)
+        SaveIDBox.Text = "Masukan Id asset..."
+    end
+end)
+
+-- Initial Render
+RenderAssets()
+
+-------------------------------------------------------------------------
+-- FIX: LOGIC SEARCH (Filter Nama & Pembuat & ID)
+-------------------------------------------------------------------------
+
+-- Penyesuaian kriteria pencarian di dalam RenderAssets untuk mendukung Nama Pembuat (Creator)
+local function MatchSearchQuery(info, numericId, query)
+    if not query or query == "" then return true end
+    
+    local nameLower = info.Name and info.Name:lower() or ""
+    local creatorLower = (info.Creator and info.Creator.Name) and info.Creator.Name:lower() or ""
+    local idStr = tostring(numericId)
+    
+    return nameLower:find(query, 1, true) 
+        or creatorLower:find(query, 1, true) 
+        or idStr:find(query, 1, true)
+end
+
+-- FUNGSIONALITAS: SEARCH BUTTON (Memfilter list internal secara real-time berdasarkan Nama, Pembuat, atau ID)
+SearchButton.MouseButton1Click:Connect(function()
+    local inputText = SearchBox.Text
+    if inputText == "" or inputText:lower() == "search asset..." then
+        RenderAssets("")
+    else
+        local originalText = SearchButton.Text
+        SearchButton.Text = "..."
+        RenderAssets(inputText)
+        task.wait(0.5)
+        SearchButton.Text = originalText
+    end
+end)
+
+-- Deteksi ketikan dinamis atau pengosongan teks pada Search Box (SearchBox_4)
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local currentText = SearchBox.Text
+    if currentText == "" or currentText:lower() == "search asset..." then
+        RenderAssets("")
+    end
+end)
+
+-------------------------------------------------------------------------
+-- FIX: SAVE ID BUTTON (Validasi ganda anti duplikasi data kembar & Auto Category)
+-------------------------------------------------------------------------
+SaveIDButton.MouseButton1Click:Connect(function()
+    local cleanId = tonumber(SaveIDBox.Text:match("%d+"))
+    if not cleanId then
+        SaveIDBox.Text = "Harus ID Angka!"
+        task.wait(1.5)
+        SaveIDBox.Text = "Masukan ID save asset..."
+        return
+    end
+
+    SaveIDButton.Text = "..."
+    
+    -- Pengecekan Duplikasi ID di seluruh Kategori SavedAssets
+    local isDuplicate = false
+    for _, assetList in pairs(SavedAssets) do
+        if typeof(assetList) == "table" then
+            for _, id in ipairs(assetList) do
+                if tonumber(id) == cleanId then
+                    isDuplicate = true
+                    break
+                end
+            end
+        end
+        if isDuplicate then break end
+    end
+
+    if isDuplicate then
+        SaveIDBox.Text = "Sudah Ada!"
+        task.wait(1.5)
+        SaveIDButton.Text = "SAVE"
+        SaveIDBox.Text = "Masukan ID save asset..."
+        return
+    end
+
+    -- Validasi Keberadaan Aset via MarketplaceService
+    local success, info = pcall(function() return MarketplaceService:GetProductInfo(cleanId) end)
+
+    if success and info then
+        local targetCat = GetCategoryFromAssetType(info.AssetTypeId)
+        
+        if not SavedAssets[targetCat] then
+            SavedAssets[targetCat] = {}
+        end
+        
+        table.insert(SavedAssets[targetCat], cleanId)
+        SaveUserData() -- Simpan ke delta/toolbox_assets.json
+        
+        -- Switch Tab secara otomatis ke kategori aset yang disimpan
+        SwitchTab(targetCat) 
+        SaveIDBox.Text = "Tersimpan!"
+    else
+        SaveIDBox.Text = "ID Gagal Validasi!"
+    end
+    
+    task.wait(1.5)
+    SaveIDButton.Text = "SAVE"
+    SaveIDBox.Text = "Masukan ID save asset..."
+end)
+
+-------------------------------------------------------------------------
+-- INITIALIZATION RUN
+-------------------------------------------------------------------------
+SwitchTab("Model")
 
 return LMG2L["ScreenGui_1"], require;
