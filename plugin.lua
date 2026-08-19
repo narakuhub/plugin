@@ -1701,25 +1701,30 @@ local function GetCategoryFromAssetType(assetTypeId)
 end
 
 -------------------------------------------------------------------------
--- FUNGSI INSERT UTAMA (SISTEM FALLBACK INTELIJEN UNTUK WORKSPACE RESMI)
+-- TAHAP 5: FUNGSI INSERT UTAMA & SAFE STUDIO FALLBACK
 -------------------------------------------------------------------------
 local function InsertAsset(assetId, category, statusTarget)
-    if statusTarget then
+    if statusTarget and typeof(statusTarget) == "Instance" and statusTarget:IsA("TextLabel") or statusTarget:IsA("TextButton") then
         statusTarget.Text = "Working"
     end
+    
     local stringId = tostring(assetId)
 
-    local successInfo, info = pcall(function() return MarketplaceService:GetProductInfo(assetId) end)
+    local successInfo, info = pcall(function() 
+        return MarketplaceService:GetProductInfo(tonumber(assetId)) 
+    end)
+    
     if successInfo and info then
         category = GetCategoryFromAssetType(info.AssetTypeId)
     else
         if not category then category = "Model" end
     end
 
-    -- Handler kalkulasi posisi Kamera Workspace jika dieksekusi di luar Studio Lite
+    -- Handler kalkulasi posisi Kamera Workspace
     local function SafeStudioFallback(obj)
         if not obj then return end
         local targetModel, isTemporary, tempContainer
+        
         if obj.ClassName == "Model" then
             targetModel = obj
             isTemporary = false
@@ -1732,7 +1737,7 @@ local function InsertAsset(assetId, category, statusTarget)
 
         local currentCFrame, boundingSize = targetModel:GetBoundingBox()
         local lowestYOffset = not targetModel.PrimaryPart and 0 or targetModel.PrimaryPart.Position.Y - boundingSize.Y / 2
-        local camCFrame = workspace.Camera.CFrame
+        local camCFrame = workspace.Camera and workspace.Camera.CFrame or CFrame.new()
         local posX = math.floor((camCFrame.X + camCFrame.LookVector.X * 30) * 2) / 2
         local posY = boundingSize.Y / 2 + lowestYOffset
         local posZ = math.floor((camCFrame.Z + camCFrame.LookVector.Z * 30) * 2) / 2
@@ -1749,8 +1754,11 @@ local function InsertAsset(assetId, category, statusTarget)
         targetModel:PivotTo(CFrame.new(calculatedPos) * currentCFrame.Rotation)
 
         if isTemporary then
-            local finalObj = targetModel:GetChildren()[1]:Clone()
-            finalObj.Parent = workspace
+            local children = targetModel:GetChildren()
+            if #children > 0 then
+                local finalObj = children[1]:Clone()
+                finalObj.Parent = workspace
+            end
             if tempContainer then tempContainer:Destroy() end
         else
             targetModel.Parent = workspace
@@ -1765,7 +1773,7 @@ local function InsertAsset(assetId, category, statusTarget)
         sound.SoundId = "rbxassetid://" .. stringId
         sound.Volume = 0.5
         sound.Parent = workspace
-        if statusTarget then statusTarget.Text = "Berhasil!" end
+        if statusTarget and statusTarget.Text then statusTarget.Text = "Berhasil!" end
         return
     end
 
@@ -1783,16 +1791,16 @@ local function InsertAsset(assetId, category, statusTarget)
                 
                 task.wait(0.2)
                 pcall(function() SetSelection:Invoke({ decal }) end)
-                if statusTarget then statusTarget.Text = "Berhasil!" end
+                if statusTarget and statusTarget.Text then statusTarget.Text = "Berhasil!" end
             else
-                if statusTarget then statusTarget.Text = "Select Part!" end
+                if statusTarget and statusTarget.Text then statusTarget.Text = "Select Part!" end
             end
         else
             local decal = Instance.new("Decal")
             decal.Name = (successInfo and info and info.Name) or "DecalAsset_" .. stringId
             decal.Texture = "rbxassetid://" .. stringId
             decal.Parent = workspace
-            if statusTarget then statusTarget.Text = "Berhasil!" end
+            if statusTarget and statusTarget.Text then statusTarget.Text = "Berhasil!" end
         end
         return
     end
@@ -1847,32 +1855,32 @@ local function InsertAsset(assetId, category, statusTarget)
                 end
                 assetClone:Destroy()
                 if ClearAssetRemote then pcall(function() ClearAssetRemote:InvokeServer(stringId) end) end
-                if statusTarget then statusTarget.Text = "Berhasil!" end
+                if statusTarget and statusTarget.Text then statusTarget.Text = "Berhasil!" end
             else
                 local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
                 if clientSuccess and clientObj then
                     SafeStudioFallback(clientObj)
-                    if statusTarget then statusTarget.Text = "Berhasil!" end
+                    if statusTarget and statusTarget.Text then statusTarget.Text = "Berhasil!" end
                 else
-                    if statusTarget then statusTarget.Text = "No Folder" end
+                    if statusTarget and statusTarget.Text then statusTarget.Text = "No Folder" end
                 end
             end
         else
             local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
             if clientSuccess and clientObj then
                 SafeStudioFallback(clientObj)
-                if statusTarget then statusTarget.Text = "Berhasil!" end
+                if statusTarget and statusTarget.Text then statusTarget.Text = "Berhasil!" end
             else
-                if statusTarget then statusTarget.Text = "Gagal" end
+                if statusTarget and statusTarget.Text then statusTarget.Text = "Gagal" end
             end
         end
     else
         local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
         if clientSuccess and clientObj then
             SafeStudioFallback(clientObj)
-            if statusTarget then statusTarget.Text = "Berhasil!" end
+            if statusTarget and statusTarget.Text then statusTarget.Text = "Berhasil!" end
         else
-            if statusTarget then statusTarget.Text = "No Remote" end
+            if statusTarget and statusTarget.Text then statusTarget.Text = "No Remote" end
         end
     end
 end
