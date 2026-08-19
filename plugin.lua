@@ -1750,4 +1750,431 @@ local function GetCategoryFromAssetType(assetTypeId)
     end
 end
 
+-------------------------------------------------------------------------
+-- FUNGSI INSERT UTAMA (SISTEM FALLBACK INTELIJEN UNTUK WORKSPACE RESMI)
+-------------------------------------------------------------------------
+local function InsertAsset(assetId, category, statusTarget)
+    -- Ambil reference status target (misal InsertButtonText atau status label)
+    local targetTextObj = statusTarget
+    if statusTarget and statusTarget:IsA("GuiObject") and not statusTarget:IsA("TextLabel") and not statusTarget:IsA("TextButton") then
+        targetTextObj = statusTarget:FindFirstChildOfClass("TextLabel") or statusTarget
+    end
+
+    local function SetStatus(text)
+        if targetTextObj and (targetTextObj:IsA("TextLabel") or targetTextObj:IsA("TextButton")) then
+            targetTextObj.Text = text
+        end
+    end
+
+    SetStatus("Working")
+    local stringId = tostring(assetId)
+
+    -- Verifikasi kategori via MarketplaceService
+    local successInfo, info = pcall(function() 
+        return MarketplaceService:GetProductInfo(tonumber(assetId)) 
+    end)
+    
+    if successInfo and info then
+        category = GetCategoryFromAssetType(info.AssetTypeId)
+    else
+        if not category then category = "Model" end
+    end
+
+    -------------------------------------------------------------------------
+    -- SAFE STUDIO FALLBACK (KALKULASI POSISI KAMERA UTAMA)
+    -------------------------------------------------------------------------
+    local function SafeStudioFallback(obj)
+        if not obj then return end
+        local targetModel, isTemporary, tempContainer
+        
+        if obj.ClassName == "Model" then
+            targetModel = obj
+            isTemporary = false
+        else
+            targetModel = Instance.new("Model")
+            obj.Parent = targetModel
+            tempContainer = targetModel
+            isTemporary = true
+        end
+
+        local currentCFrame, boundingSize = targetModel:GetBoundingBox()
+        local lowestYOffset = not targetModel.PrimaryPart and 0 or targetModel.PrimaryPart.Position.Y - boundingSize.Y / 2
+        local camera = workspace.CurrentCamera or workspace.Camera
+        local camCFrame = camera.CFrame
+        
+        local posX = math.floor((camCFrame.X + camCFrame.LookVector.X * 30) * 2) / 2
+        local posY = boundingSize.Y / 2 + lowestYOffset
+        local posZ = math.floor((camCFrame.Z + camCFrame.LookVector.Z * 30) * 2) / 2
+        
+        local calculatedPos = Vector3.new(posX, posY, posZ)
+        local raycastOrigin = Vector3.new(calculatedPos.X, camCFrame.Y, calculatedPos.Z)
+        local raycastResult = workspace:Raycast(raycastOrigin, Vector3.new(0, -camCFrame.Y, 0))
+        
+        if raycastResult then
+            local newY = raycastResult.Instance.Position.Y + raycastResult.Instance.Size.Y / 2 + boundingSize.Y / 2 + lowestYOffset
+            calculatedPos = Vector3.new(calculatedPos.X, newY, calculatedPos.Z)
+        end
+
+        targetModel:PivotTo(CFrame.new(calculatedPos) * currentCFrame.Rotation)
+
+        if isTemporary then
+            local children = targetModel:GetChildren()
+            if #children > 0 then
+                local finalObj = children[1]:Clone()
+                finalObj.Parent = workspace
+            end
+            if tempContainer then tempContainer:Destroy() end
+        else
+            targetModel.Parent = workspace
+            targetModel:MakeJoints()
+        end
+    end
+
+    -------------------------------------------------------------------------
+    -- JIKA ASSET ADALAH AUDIO
+    -------------------------------------------------------------------------
+    if category == "Audio" then
+        local sound = Instance.new("Sound")
+        sound.Name = (successInfo and info and info.Name) or "SoundAsset_" .. stringId
+        sound.SoundId = "rbxassetid://" .. stringId
+        sound.Volume = 0.5
+        sound.Parent = workspace
+        SetStatus("Berhasil!")
+        return
+    end
+
+    -------------------------------------------------------------------------
+    -- JIKA ASSET ADALAH DECAL
+    -------------------------------------------------------------------------
+    if category == "Decal" then
+        if GetSelection and SetSelection then
+            local currentSelection = nil
+            pcall(function() currentSelection = GetSelection:Invoke() end)
+            
+            if currentSelection and typeof(currentSelection) == "table" and #currentSelection >= 1 and currentSelection[1]:IsA("BasePart") then
+                local decal = Instance.new("Decal")
+                decal.Name = (successInfo and info and info.Name) or "Decal"
+                decal.Texture = "rbxthumb://type=Asset&id=" .. stringId .. "&w=420&h=420"
+                decal.Parent = currentSelection[1]
+                
+                task.wait(0.2)
+                pcall(function() SetSelection:Invoke({ decal }) end)
+                SetStatus("Berhasil!")
+            else
+                SetStatus("Select Part!")
+            end
+        else
+            local decal = Instance.new("Decal")
+            decal.Name = (successInfo and info and info.Name) or "DecalAsset_" .. stringId
+            decal.Texture = "rbxassetid://" .. stringId
+            decal.Parent = workspace
+            SetStatus("Berhasil!")
+        end
+        return
+    end
+
+    -------------------------------------------------------------------------
+    -- JIKA ASSET ADALAH MODEL / PLUGIN / LAINNYA
+    -------------------------------------------------------------------------
+    if LoadAssetRemote and LoadAssetRemote:IsA("RemoteFunction") then
+        local loadSuccess = false
+        pcall(function()
+            loadSuccess = LoadAssetRemote:InvokeServer(stringId)
+        end)
+
+        if loadSuccess then
+            local serverFolder = PlayerGui:WaitForChild(stringId, 5)
+            if serverFolder then
+                local assetClone = serverFolder:Clone()
+                local children = assetClone:GetChildren()
+                if #children == 0 then
+                    local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+                    if clientSuccess and clientObj then
+                        SafeStudioFallback(clientObj)
+                        SetStatus("Berhasil!")
+                    else
+                        assetClone.Parent = workspace
+                        SetStatus("Berhasil!")
+                    end
+                else
+                    for _, obj in pairs(children) do
+                        if obj.ClassName == "Folder" and ("Workspace Lighting MaterialService ReplicatedStorage ServerStorage ServerScriptService StarterGui StarterPack Teams SoundService StarterPlayer InsertService TextChatService"):find(obj.Name, 1, true) then
+                            if obj.Name == "ServerStorage" then
+                                for _, item in pairs(obj:GetChildren()) do item.Parent = _G.ss or game:GetService("ServerStorage") end
+                            elseif obj.Name == "ServerScriptService" then
+                                for _, item in pairs(obj:GetChildren()) do item.Parent = _G.sss or game:GetService("ServerScriptService") end
+                            elseif obj.Name == "StarterPlayer" then
+                                for _, inner in pairs(obj:GetChildren()) do
+                                    if inner.Name == "StarterPlayerScripts" or inner.Name == "StarterCharacterScripts" then
+                                        for _, scr in pairs(inner:GetChildren()) do
+                                            if not game.StarterPlayer[inner.Name]:FindFirstChild(scr.Name) then
+                                                scr.Parent = game.StarterPlayer[inner.Name]
+                                            end
+                                        end
+                                    else
+                                        inner.Parent = game.StarterPlayer
+                                    end
+                                end
+                            elseif obj.Name ~= "InsertService" and obj.Name ~= "TextChatService" then
+                                local targetService = game:FindFirstChild(obj.Name)
+                                if targetService then
+                                    for _, item in pairs(obj:GetChildren()) do item.Parent = targetService end
+                                end
+                            end
+                        elseif obj:IsA("PostEffect") or obj.ClassName == "Sky" then
+                            obj.Parent = game.Lighting
+                        else
+                            SafeStudioFallback(obj)
+                        end
+                    end
+                    SetStatus("Berhasil!")
+                end
+                assetClone:Destroy()
+                if ClearAssetRemote then pcall(function() ClearAssetRemote:InvokeServer(stringId) end) end
+            else
+                local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+                if clientSuccess and clientObj then
+                    SafeStudioFallback(clientObj)
+                    SetStatus("Berhasil!")
+                else
+                    SetStatus("No Folder")
+                end
+            end
+        else
+            local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+            if clientSuccess and clientObj then
+                SafeStudioFallback(clientObj)
+                SetStatus("Berhasil!")
+            else
+                SetStatus("Gagal")
+            end
+        end
+    else
+        local clientSuccess, clientObj = pcall(function() return game:GetObjects("rbxassetid://" .. assetId)[1] end)
+        if clientSuccess and clientObj then
+            SafeStudioFallback(clientObj)
+            SetStatus("Berhasil!")
+        else
+            SetStatus("No Remote")
+        end
+    end
+end
+
+-------------------------------------------------------------------------
+-- CACHE & RENDER LIST ASSET SYSTEM
+-------------------------------------------------------------------------
+local AssetInfoCache = {}
+
+local function RenderAssets(searchQuery)
+    ClearList()
+    
+    CurrentSessionId = CurrentSessionId + 1
+    local thisSession = CurrentSessionId
+    
+    local targetCategoryAtCall = CurrentCategory
+    local targetModeAtCall = CurrentTabMode
+    
+    -- Tentukan daftar ID asset yang akan dirender berdasarkan Mode Aktif
+    local sourceList = {}
+    if targetModeAtCall == "Saved" then
+        -- Ambil dari database lokal (toolbox_assets.json)
+        sourceList = SavedAssets[targetCategoryAtCall] or {}
+    else
+        -- Ambil dari Master Catalog Database (Assets.json)
+        sourceList = MasterAssets[targetCategoryAtCall] or {}
+    end
+    
+    local query = ""
+    if searchQuery and searchQuery ~= "" and searchQuery ~= "Search asset..." then
+        query = searchQuery:lower():match("^%s*(.-)%s*$") or ""
+    end
+
+    -- Fungsi Otomatis Rekalkulasi Tinggi Canvas ScrollingFrame
+    local function UpdateCanvas()
+        if CurrentCategory ~= targetCategoryAtCall or CurrentTabMode ~= targetModeAtCall then return end
+        local layout = ScrollingFrame:FindFirstChildOfClass("UIListLayout")
+        if layout then
+            ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 25)
+        end
+    end
+
+    local totalLoadedCount = 0
+
+    for _, assetId in ipairs(sourceList) do
+        task.spawn(function()
+            local numericId = tonumber(assetId)
+            if not numericId then return end
+
+            local success, info = true, AssetInfoCache[numericId]
+            
+            if not info then
+                success, info = pcall(function() 
+                    return MarketplaceService:GetProductInfo(numericId) 
+                end)
+                if success and info then
+                    AssetInfoCache[numericId] = info
+                end
+            end
+            
+            -- Pengecekan Guard Sesi & Kategori untuk mencegah race condition saat ganti tab cepat
+            if thisSession ~= CurrentSessionId or CurrentCategory ~= targetCategoryAtCall or CurrentTabMode ~= targetModeAtCall then 
+                return 
+            end
+            
+            if success and info then
+                -- Filter Pencarian berdasarkan Nama Asset atau Asset ID
+                if query ~= "" then
+                    local assetNameLower = info.Name:lower()
+                    local assetIdStr = tostring(numericId)
+                    if not assetNameLower:find(query, 1, true) and not assetIdStr:find(query, 1, true) then
+                        return 
+                    end
+                end
+
+                -- Clone template card (AssetTemplate dibuat di Tahap 1 dari Card_5d)
+                local card = AssetTemplate:Clone()
+                card.Visible = true
+                card.Parent = ScrollingFrame
+                card.Name = "Asset_" .. numericId
+
+                -- Referensi Elemen UI di dalam Card_5d (UI Baru)
+                local ThumbnailAsset = card:FindFirstChild("ThumbnailAsset_5e")
+                local NameLabel = card:FindFirstChild("Name_6e")
+                local CreatorLabel = card:FindFirstChild("Creator_60")
+                local IDLabel = card:FindFirstChild("ID_70")
+                
+                -- Container & Tombol Akses
+                local BackgroundInsert = card:FindFirstChild("BackgroundInsert")
+                local InsertButton = BackgroundInsert and BackgroundInsert:FindFirstChild("InsertButton_6b")
+                
+                local BackgroundCopy = card:FindFirstChild("BackgroundCopy")
+                local CopyButton = BackgroundCopy and BackgroundCopy:FindFirstChild("CopyButton_64")
+
+                -- Element Indikator Visual Bookmark / Saved Status
+                local BookmarkButton = card:FindFirstChild("SavedButton_2c") or card:FindFirstChild("SavedButton") or card:FindFirstChild("Bookmark")
+                local IconSaved = card:FindFirstChild("IconSaved_47") or card:FindFirstChild("IconSaved")
+
+                -- Pengisian Informasi Text
+                if NameLabel then NameLabel.Text = info.Name end
+                if CreatorLabel then CreatorLabel.Text = "By: " .. (info.Creator and info.Creator.Name or "Unknown") end
+                if IDLabel then IDLabel.Text = "ID : " .. tostring(numericId) end
+
+                -- Pengisian Visual Thumbnail
+                if ThumbnailAsset and ThumbnailAsset:IsA("ImageLabel") then
+                    if targetCategoryAtCall == "Decal" then
+                        ThumbnailAsset.Image = "rbxthumb://type=Asset&id=" .. numericId .. "&w=150&h=150"
+                    elseif targetCategoryAtCall == "Audio" then
+                        ThumbnailAsset.Image = "rbxassetid://16327318049" -- Default Icon Sound
+                    else
+                        ThumbnailAsset.Image = "rbxthumb://type=Asset&id=" .. numericId .. "&w=150&h=150"
+                    end
+                end
+
+                -- Sync Indikator Bookmark / IconSaved berdasarkan toolbox_assets.json
+                local function UpdateBookmarkVisual()
+                    local saved = IsAssetSaved(targetCategoryAtCall, numericId)
+                    if IconSaved and IconSaved:IsA("ImageLabel") then
+                        IconSaved.ImageColor3 = saved and COLOR_ACTIVE or Color3.fromRGB(200, 200, 200)
+                        IconSaved.ImageTransparency = saved and 0 or 0.5
+                    end
+                end
+                UpdateBookmarkVisual()
+
+                -- Event Handler: Bookmark / Saved Toggle
+                if BookmarkButton then
+                    BookmarkButton.MouseButton1Click:Connect(function()
+                        if IsAssetSaved(targetCategoryAtCall, numericId) then
+                            RemoveSavedAsset(targetCategoryAtCall, numericId)
+                            if CurrentTabMode == "Saved" then
+                                card:Destroy()
+                                UpdateCanvas()
+                            end
+                        else
+                            AddSavedAsset(targetCategoryAtCall, numericId)
+                        end
+                        UpdateBookmarkVisual()
+                    end)
+                end
+
+                -- Event Handler: Copy Asset ID
+                if CopyButton then
+                    CopyButton.MouseButton1Click:Connect(function()
+                        setclipboard(tostring(numericId))
+                        local copyText = CopyButton:FindFirstChildOfClass("TextLabel") or CopyButton
+                        local origText = copyText.Text
+                        copyText.Text = "Copied!"
+                        task.wait(1)
+                        copyText.Text = origText
+                    end)
+                end
+
+                -- Event Handler: Insert Asset
+                if InsertButton then
+                    InsertButton.MouseButton1Click:Connect(function()
+                        local insertText = InsertButton:FindFirstChildOfClass("TextLabel") or InsertButton
+                        InsertAsset(numericId, targetCategoryAtCall, insertText)
+                        task.wait(1.5)
+                        if insertText and insertText:IsA("TextLabel") then
+                            insertText.Text = "INSERT"
+                        end
+                    end)
+                end
+
+                totalLoadedCount = totalLoadedCount + 1
+                if AmountAsset then
+                    AmountAsset.Text = tostring(totalLoadedCount) .. " Assets"
+                end
+
+                UpdateCanvas()
+            end
+        end)
+    end
+    
+    task.delay(0.3, UpdateCanvas)
+end
+
+-------------------------------------------------------------------------
+-- TAB & MODE SWITCHING SYSTEM
+-------------------------------------------------------------------------
+-- Handler Switch Kategori (Model, Decal, Audio, Plugin)
+local function SwitchTab(categoryName)
+    CurrentCategory = categoryName
+
+    -- Reset Seluruh Status Visual Tab Button
+    AudioButton.BackgroundColor3 = COLOR_INACTIVE
+    ModelButton.BackgroundColor3 = COLOR_INACTIVE
+    PluginButton.BackgroundColor3 = COLOR_INACTIVE
+    DecalButton.BackgroundColor3 = COLOR_INACTIVE
+
+    -- Active Highlight Tab
+    if categoryName == "Model" and ModelButton then 
+        ModelButton.BackgroundColor3 = COLOR_ACTIVE
+    elseif categoryName == "Decal" and DecalButton then 
+        DecalButton.BackgroundColor3 = COLOR_ACTIVE
+    elseif categoryName == "Audio" and AudioButton then 
+        AudioButton.BackgroundColor3 = COLOR_ACTIVE
+    elseif categoryName == "Plugin" and PluginButton then 
+        PluginButton.BackgroundColor3 = COLOR_ACTIVE
+    end
+    
+    if SearchBox then
+        SearchBox.Text = ""
+    end
+    
+    RenderAssets()
+end
+
+-- Handler Switch Mode (Katalog Global vs Bookmark User)
+local function ToggleSavedMode()
+    if CurrentTabMode == "Search" then
+        CurrentTabMode = "Saved"
+        if CardSaved then CardSaved.BackgroundColor3 = COLOR_ACTIVE end
+    else
+        CurrentTabMode = "Search"
+        if CardSaved then CardSaved.BackgroundColor3 = COLOR_INACTIVE end
+    end
+    
+    RenderAssets(SearchBox and SearchBox.Text or "")
+end
+
 return LMG2L["ScreenGui_1"], require;
