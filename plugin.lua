@@ -1061,10 +1061,7 @@ LMG2L["OpenButton_78"]["Position"] = UDim2.new(0, 0, 0, -10);
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local Players = game:GetService("Players")
-
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
+local CoreGui = game:GetService("CoreGui")
 
 -- =========================================================
 -- SCREEN GUI
@@ -1074,15 +1071,17 @@ local ScreenGui = LMG2L["ScreenGui_1"]
 local NarakuPlugin = LMG2L["NarakuPlugin_2"]
 
 if not ScreenGui then
-    ScreenGui = PlayerGui:FindFirstChild("ScreenGui_1")
+    ScreenGui = CoreGui:FindFirstChild("ScreenGui_1")
 
     if not ScreenGui then
         ScreenGui = Instance.new("ScreenGui")
         ScreenGui.Name = "ScreenGui_1"
         ScreenGui.ResetOnSpawn = false
         ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        ScreenGui.Parent = PlayerGui
+        ScreenGui.Parent = CoreGui
     end
+else
+    ScreenGui.Parent = CoreGui
 end
 
 if not NarakuPlugin then
@@ -1125,11 +1124,8 @@ local BackgroundInsert = LMG2L["BackgroundInsert_32"]
 local CardMenu = LMG2L["CardMenu_3d"]
 
 local AmountAsset = LMG2L["AmountAsset_4a"]
-
 local ScrollingFrame = LMG2L["ScrollingFrame_5a"]
-
 local ResizeHandle = LMG2L["ResizeHandleButton_2f"]
-
 local OpenButton = LMG2L["OpenButton_78"]
 
 -- =========================================================
@@ -1145,41 +1141,23 @@ local ORIGINAL_HEIGHT = ORIGINAL_PANEL_SIZE.Y.Offset
 local MIN_HEIGHT = ORIGINAL_HEIGHT
 local MAX_HEIGHT = 700
 
-local ORIGINAL_SCROLLING_FRAME_POSITION =
-    ScrollingFrame.Position
+local ORIGINAL_SCROLL_POSITION = ScrollingFrame.Position
+local ORIGINAL_SCROLL_SIZE = ScrollingFrame.Size
 
-local ORIGINAL_SCROLLING_FRAME_SIZE =
-    ScrollingFrame.Size
+local ORIGINAL_RESIZE_POSITION = ResizeHandle.Position
+local ORIGINAL_AMOUNT_POSITION = AmountAsset.Position
 
-local ORIGINAL_RESIZE_POSITION =
-    ResizeHandle.Position
+local ORIGINAL_INSERT_POSITION = InsertBox.Position
+local ORIGINAL_BACKGROUND_INSERT_POSITION = BackgroundInsert.Position
 
-local ORIGINAL_AMOUNT_POSITION =
-    AmountAsset.Position
+local ORIGINAL_SAVE_POSITION = SaveBox.Position
+local ORIGINAL_BACKGROUND_SAVE_POSITION = BackgroundSave.Position
 
-local ORIGINAL_INSERT_POSITION =
-    InsertBox.Position
+local ORIGINAL_SEARCH_POSITION = SearchBox.Position
+local ORIGINAL_BACKGROUND_SEARCH_POSITION = BackgroundSearch.Position
 
-local ORIGINAL_BACKGROUND_INSERT_POSITION =
-    BackgroundInsert.Position
-
-local ORIGINAL_SAVE_POSITION =
-    SaveBox.Position
-
-local ORIGINAL_BACKGROUND_SAVE_POSITION =
-    BackgroundSave.Position
-
-local ORIGINAL_SEARCH_POSITION =
-    SearchBox.Position
-
-local ORIGINAL_BACKGROUND_SEARCH_POSITION =
-    BackgroundSearch.Position
-
-local ORIGINAL_CARD_SAVED_POSITION =
-    CardSaved.Position
-
-local ORIGINAL_CARD_MENU_POSITION =
-    CardMenu.Position
+local ORIGINAL_CARD_SAVED_POSITION = CardSaved.Position
+local ORIGINAL_CARD_MENU_POSITION = CardMenu.Position
 
 -- =========================================================
 -- PANEL POSITION
@@ -1201,6 +1179,9 @@ local CLOSE_POSITION = UDim2.new(
 local IsOpen = true
 local IsDestroyed = false
 local IsResizing = false
+
+local StartMouseY = 0
+local StartHeight = ORIGINAL_HEIGHT
 
 -- =========================================================
 -- TWEEN
@@ -1226,15 +1207,13 @@ local ARROW_RIGHT = "rbxassetid://138472587694798"
 local ARROW_LEFT = "rbxassetid://82611145930357"
 
 local function UpdateOpenButtonIcon()
-    if not OpenButton or IsDestroyed then
+    if IsDestroyed or not OpenButton then
         return
     end
 
-    if IsOpen then
-        OpenButton.Image = ARROW_LEFT
-    else
-        OpenButton.Image = ARROW_RIGHT
-    end
+    OpenButton.Image = IsOpen
+        and ARROW_LEFT
+        or ARROW_RIGHT
 end
 
 -- =========================================================
@@ -1259,28 +1238,26 @@ local function UpdatePanelLayout(NewHeight)
         NewHeight
     )
 
-    local ScrollTop =
-        ORIGINAL_SCROLLING_FRAME_POSITION.Y.Offset
-
+    local ScrollTop = ORIGINAL_SCROLL_POSITION.Y.Offset
     local ScrollBottomPadding = 16
 
-    local NewScrollHeight = math.max(
+    local ScrollHeight = math.max(
         50,
         NewHeight - ScrollTop - ScrollBottomPadding
     )
 
     ScrollingFrame.Position = UDim2.new(
-        ORIGINAL_SCROLLING_FRAME_POSITION.X.Scale,
-        ORIGINAL_SCROLLING_FRAME_POSITION.X.Offset,
-        ORIGINAL_SCROLLING_FRAME_POSITION.Y.Scale,
+        ORIGINAL_SCROLL_POSITION.X.Scale,
+        ORIGINAL_SCROLL_POSITION.X.Offset,
+        ORIGINAL_SCROLL_POSITION.Y.Scale,
         ScrollTop
     )
 
     ScrollingFrame.Size = UDim2.new(
-        ORIGINAL_SCROLLING_FRAME_SIZE.X.Scale,
-        ORIGINAL_SCROLLING_FRAME_SIZE.X.Offset,
+        ORIGINAL_SCROLL_SIZE.X.Scale,
+        ORIGINAL_SCROLL_SIZE.X.Offset,
         0,
-        NewScrollHeight
+        ScrollHeight
     )
 
     ResizeHandle.Position = UDim2.new(
@@ -1297,33 +1274,21 @@ local function UpdatePanelLayout(NewHeight)
         -13
     )
 
-    InsertBox.Position =
-        ORIGINAL_INSERT_POSITION
+    InsertBox.Position = ORIGINAL_INSERT_POSITION
+    BackgroundInsert.Position = ORIGINAL_BACKGROUND_INSERT_POSITION
 
-    BackgroundInsert.Position =
-        ORIGINAL_BACKGROUND_INSERT_POSITION
+    SaveBox.Position = ORIGINAL_SAVE_POSITION
+    BackgroundSave.Position = ORIGINAL_BACKGROUND_SAVE_POSITION
 
-    SaveBox.Position =
-        ORIGINAL_SAVE_POSITION
+    SearchBox.Position = ORIGINAL_SEARCH_POSITION
+    BackgroundSearch.Position = ORIGINAL_BACKGROUND_SEARCH_POSITION
 
-    BackgroundSave.Position =
-        ORIGINAL_BACKGROUND_SAVE_POSITION
-
-    SearchBox.Position =
-        ORIGINAL_SEARCH_POSITION
-
-    BackgroundSearch.Position =
-        ORIGINAL_BACKGROUND_SEARCH_POSITION
-
-    CardSaved.Position =
-        ORIGINAL_CARD_SAVED_POSITION
-
-    CardMenu.Position =
-        ORIGINAL_CARD_MENU_POSITION
+    CardSaved.Position = ORIGINAL_CARD_SAVED_POSITION
+    CardMenu.Position = ORIGINAL_CARD_MENU_POSITION
 end
 
 -- =========================================================
--- INITIAL STATE
+-- PANEL INITIALIZATION
 -- =========================================================
 
 Panel.AnchorPoint = Vector2.new(0, 0)
@@ -1334,7 +1299,7 @@ Panel.Visible = true
 UpdatePanelLayout(ORIGINAL_HEIGHT)
 
 -- =========================================================
--- OPEN PANEL
+-- PANEL OPEN / CLOSE
 -- =========================================================
 
 local function OpenPanel()
@@ -1353,10 +1318,6 @@ local function OpenPanel()
         }
     ):Play()
 end
-
--- =========================================================
--- HIDE PANEL
--- =========================================================
 
 local function HidePanel()
     if IsDestroyed then
@@ -1421,12 +1382,7 @@ CloseButton.MouseButton1Click:Connect(function()
         TweenDestroy,
         {
             Size = UDim2.new(0, 0, 0, 0),
-            Position = UDim2.new(
-                ORIGINAL_PANEL_POSITION.X.Scale,
-                ORIGINAL_PANEL_POSITION.X.Offset,
-                ORIGINAL_PANEL_POSITION.Y.Scale,
-                ORIGINAL_PANEL_POSITION.Y.Offset
-            )
+            Position = ORIGINAL_PANEL_POSITION
         }
     )
 
@@ -1441,9 +1397,6 @@ end)
 -- =========================================================
 -- RESIZE SYSTEM
 -- =========================================================
-
-local StartMouseY = 0
-local StartHeight = ORIGINAL_HEIGHT
 
 ResizeHandle.InputBegan:Connect(function(Input)
     if IsDestroyed then
@@ -1468,7 +1421,7 @@ UserInputService.InputEnded:Connect(function(Input)
 end)
 
 UserInputService.InputChanged:Connect(function(Input)
-    if not IsResizing then
+    if IsDestroyed or not IsResizing then
         return
     end
 
@@ -1477,16 +1430,11 @@ UserInputService.InputChanged:Connect(function(Input)
         return
     end
 
-    local DeltaY =
-        Input.Position.Y - StartMouseY
+    local DeltaY = Input.Position.Y - StartMouseY
 
-    local NewHeight = math.clamp(
-        StartHeight + DeltaY,
-        MIN_HEIGHT,
-        MAX_HEIGHT
+    UpdatePanelLayout(
+        StartHeight + DeltaY
     )
-
-    UpdatePanelLayout(NewHeight)
 end)
 
 -- =========================================================
@@ -1494,12 +1442,9 @@ end)
 -- =========================================================
 
 local AssetLayout =
-    ScrollingFrame:FindFirstChildOfClass(
-        "UIListLayout"
-    )
+    ScrollingFrame:FindFirstChildOfClass("UIListLayout")
 
 if AssetLayout then
-
     local function UpdateAssetCanvas()
         if IsDestroyed then
             return
@@ -1525,12 +1470,9 @@ end
 -- =========================================================
 
 local TabLayout =
-    ScrollingTab:FindFirstChildOfClass(
-        "UIListLayout"
-    )
+    ScrollingTab:FindFirstChildOfClass("UIListLayout")
 
 if TabLayout then
-
     local function UpdateTabCanvas()
         if IsDestroyed then
             return
@@ -1552,7 +1494,7 @@ if TabLayout then
 end
 
 -- =========================================================
--- FINAL LAYOUT
+-- FINALIZE
 -- =========================================================
 
 UpdatePanelLayout(ORIGINAL_HEIGHT)
