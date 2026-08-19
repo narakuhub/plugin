@@ -2134,10 +2134,15 @@ InsertButton.MouseButton1Click:Connect(function()
 end)
 
 -------------------------------------------------------------------------
--- FIX: LOGIC SEARCH & SAVE ID BUTTON
+-- FIX: LOGIC SEARCH & SAVE SYSTEM (SINKRONISASI STRUKTUR SCREENGUI BARU)
 -------------------------------------------------------------------------
 
--- FUNGSIONALITAS 2: SEARCH BUTTON & DYNAMIC LISTENER
+-- Referensi Tombol Utama Berdasarkan Name Hirarki Baru (Anti Index Nil)
+local SearchButton = LMG2L["SearchButton_75"]
+local SaveButton = LMG2L["SaveButton_56"]
+local InsertButton = LMG2L["InsertButton_34"]
+
+-- 1. FUNGSIONALITAS SEARCH BUTTON
 SearchButton.MouseButton1Click:Connect(function()
     local inputText = SearchBox.Text
     if inputText == "" or inputText:lower() == "search asset..." then
@@ -2151,19 +2156,19 @@ SearchButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Deteksi Ketikan Dinamis pada SearchBox
+-- Deteksi ketikan dinamis/pengosongan pada SearchBox
 SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
     local currentText = SearchBox.Text
     if currentText == "" or currentText:lower() == "search asset..." then
         RenderAssets("")
     else
-        -- Melakukan filter real-time saat user mengetik
+        -- Real-time filter saat pengguna mengetik Nama Asset, Creator Username, atau ID
         RenderAssets(currentText)
     end
 end)
 
--- FUNGSIONALITAS 3: SAVE BUTTON (Validasi Anti Duplikasi & Auto Detect Kategori)
-SaveIDButton.MouseButton1Click:Connect(function()
+-- 2. FUNGSIONALITAS SAVE BUTTON (Validasi Duplikasi & Switch Tab Otomatis)
+SaveButton.MouseButton1Click:Connect(function()
     local rawText = SaveIDBox.Text
     local cleanId = tonumber(rawText:match("%d+"))
 
@@ -2171,7 +2176,6 @@ SaveIDButton.MouseButton1Click:Connect(function()
         SaveIDBox.Text = "Harus ID Angka!"
         SaveIDBox.TextTransparency = 0
         task.wait(1.5)
-        
         if SaveIDBox.Text == "Harus ID Angka!" then
             SaveIDBox.Text = "Masukan ID save asset..."
             SaveIDBox.TextTransparency = 0.5
@@ -2179,14 +2183,14 @@ SaveIDButton.MouseButton1Click:Connect(function()
         return
     end
 
-    -- Menampilkan ID bersih yang diekstrak pada kotak input
+    -- Format teks box hanya menyisakan angka ID
     SaveIDBox.Text = tostring(cleanId)
     SaveIDBox.TextTransparency = 0
     SaveIDBox.TextColor3 = COLOR_TEXT_ACTIVE
 
-    SaveIDButton.Text = "..."
+    SaveButton.Text = "..."
     
-    -- Validasi Anti Duplikasi di Seluruh Kategori SavedAssets
+    -- Pengecekan Duplikasi ID di seluruh daftar SavedAssets
     local isDuplicate = false
     for _, assetList in pairs(SavedAssets) do
         if typeof(assetList) == "table" then
@@ -2203,39 +2207,43 @@ SaveIDButton.MouseButton1Click:Connect(function()
     if isDuplicate then
         SaveIDBox.Text = "Sudah Ada!"
         task.wait(1.5)
-        SaveIDButton.Text = "SAVE"
-        -- Teks ID tetap dipertahankan jika tidak di-reset oleh pesan peringatan
-        SaveIDBox.Text = tostring(cleanId)
+        SaveButton.Text = "SAVE"
+        -- Teks ID tetap dipertahankan di dalam box untuk penghapusan manual
+        if SaveIDBox.Text == "Sudah Ada!" then
+            SaveIDBox.Text = tostring(cleanId)
+        end
         return
     end
 
-    -- Validasi Keberadaan Asset via Roblox Marketplace
+    -- Validasi Keberadaan Asset via MarketplaceService
     local success, info = pcall(function() return MarketplaceService:GetProductInfo(cleanId) end)
 
     if success and info then
-        local targetCat = GetCategoryFromAssetType(info.AssetTypeId)
-        
-        if not SavedAssets[targetCat] then
-            SavedAssets[targetCat] = {}
+        local cat = GetCategoryFromAssetType(info.AssetTypeId)
+        if not SavedAssets[cat] then
+            SavedAssets[cat] = {}
         end
         
-        -- Tambahkan ke tabel lokal & simpan ke delta/toolbox_assets.json
-        table.insert(SavedAssets[targetCat], cleanId)
-        SaveUserData()
+        table.insert(SavedAssets[cat], cleanId)
+        SaveUserData() -- Simpan perubahan ke delta/toolbox_assets.json
         
-        -- Berpindah Tab secara otomatis ke kategori aset yang disimpan
-        SwitchTab(targetCat) 
-        
-        SaveIDButton.Text = "SAVED!"
-        task.wait(1.5)
-        SaveIDButton.Text = "SAVE"
-        -- Teks ID tetap bertahan di SaveIDBox (Penghapusan Teks Dilakukan Manual oleh User)
+        SwitchTab(cat) -- Pindah tab otomatis sesuai kategori aset
+        SaveButton.Text = "SAVED!"
     else
         SaveIDBox.Text = "ID Gagal Validasi!"
         task.wait(1.5)
-        SaveIDButton.Text = "SAVE"
-        SaveIDBox.Text = tostring(cleanId)
+        if SaveIDBox.Text == "ID Gagal Validasi!" then
+            SaveIDBox.Text = tostring(cleanId)
+        end
     end
+    
+    task.wait(1.5)
+    SaveButton.Text = "SAVE"
 end)
+
+-------------------------------------------------------------------------
+-- INITIALIZATION RUN
+-------------------------------------------------------------------------
+SwitchTab("Model")
 
 return LMG2L["ScreenGui_1"], require;
